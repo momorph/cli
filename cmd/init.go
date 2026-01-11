@@ -10,6 +10,7 @@ import (
 
 	"github.com/momorph/cli/internal/api"
 	"github.com/momorph/cli/internal/auth"
+	"github.com/momorph/cli/internal/config"
 	"github.com/momorph/cli/internal/logger"
 	"github.com/momorph/cli/internal/template"
 	"github.com/momorph/cli/internal/ui"
@@ -168,10 +169,16 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		logger.Warn("Failed to load GitHub token: %v", err)
 	} else if token.GitHubToken != "" {
-		if err := template.UpdateAIToolConfig(aiTool, targetDir, token.GitHubToken); err != nil {
-			logger.Warn("Failed to update AI tool config: %v", err)
+		// Load config to get MCP server endpoint
+		cfg, err := config.Load()
+		if err != nil {
+			logger.Warn("Failed to load config: %v", err)
 		} else {
-			logger.Info("Successfully updated GitHub token in %s config", aiTool)
+			if err := template.UpdateAIToolConfig(aiTool, targetDir, token.GitHubToken, cfg.MCPServerEndpoint); err != nil {
+				logger.Warn("Failed to update AI tool config: %v", err)
+			} else {
+				logger.Info("Successfully updated GitHub token in %s config", aiTool)
+			}
 		}
 	}
 

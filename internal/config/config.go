@@ -10,6 +10,7 @@ import (
 // UserConfig represents CLI configuration
 type UserConfig struct {
 	APIEndpoint        string    `json:"api_endpoint"`
+	MCPServerEndpoint  string    `json:"mcp_server_endpoint"`
 	DefaultAITool      string    `json:"default_ai_tool"`
 	LogLevel           string    `json:"log_level"`
 	LastUpdateCheck    time.Time `json:"last_update_check"`
@@ -37,6 +38,7 @@ func DefaultConfig() *UserConfig {
 
 	return &UserConfig{
 		APIEndpoint:        apiEndpoint,
+		MCPServerEndpoint:  "https://momorph.ai/mcp",
 		DefaultAITool:      "", // Prompt user
 		LogLevel:           "info",
 		LastUpdateCheck:    time.Time{},
