@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -49,8 +53,22 @@ func runLogin(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("\n" + lipgloss.NewStyle().Bold(true).Render("📱 GitHub Device Flow Authentication"))
 	fmt.Println(lipgloss.NewStyle().Faint(true).Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"))
-	fmt.Printf("\n1. Visit: %s\n", lipgloss.NewStyle().Underline(true).Render(deviceCode.VerificationURI))
-	fmt.Printf("2. Enter code: %s\n\n", codeStyle.Render(deviceCode.UserCode))
+	fmt.Printf("\n1. Your browser will open to: %s\n", lipgloss.NewStyle().Underline(true).Render(deviceCode.VerificationURI))
+	fmt.Printf("2. Enter this code: %s\n", codeStyle.Render(deviceCode.UserCode))
+	fmt.Printf("\n%s", lipgloss.NewStyle().Faint(true).Render("Press Enter to open your browser..."))
+
+	// Wait for user to press enter
+	reader := bufio.NewReader(os.Stdin)
+	reader.ReadString('\n')
+
+	// Open browser
+	fmt.Println("\n🌐 Opening browser...")
+	if err := openBrowser(deviceCode.VerificationURI); err != nil {
+		logger.Warn("Failed to open browser: %v", err)
+		fmt.Printf("⚠  Could not open browser automatically. Please visit: %s\n\n", deviceCode.VerificationURI)
+	} else {
+		fmt.Println("")
+	}
 
 	// Poll for token
 	fmt.Println("⏳ Waiting for authorization...")
@@ -108,4 +126,22 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Logged in as: %s\n", lipgloss.NewStyle().Bold(true).Render(user.Login))
 
 	return nil
+}
+
+// openBrowser opens the specified URL in the default browser
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+
+	return cmd.Start()
 }
