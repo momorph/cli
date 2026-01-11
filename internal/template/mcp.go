@@ -11,7 +11,7 @@ import (
 
 // ConfigUpdater defines the interface for updating AI tool specific configs
 type ConfigUpdater interface {
-	UpdateGitHubToken(projectDir, githubToken string) error
+	ConfigureMCPServer(projectDir, githubToken string) error
 }
 
 // ClaudeMCPConfig represents the structure of Claude's .mcp.json file
@@ -29,9 +29,9 @@ type ClaudeMCPServer struct {
 // claudeConfigUpdater handles Claude-specific config updates
 type claudeConfigUpdater struct{}
 
-// UpdateGitHubToken updates the GitHub token in Claude's .mcp.json file
-// This function preserves all existing fields and only updates the x-mcp-x-github-token value
-func (c *claudeConfigUpdater) UpdateGitHubToken(projectDir, githubToken string) error {
+// ConfigureMCPServer updates the GitHub token in Claude's .mcp.json file
+// This function preserves all existing fields and only updates the x-github-token value
+func (c *claudeConfigUpdater) ConfigureMCPServer(projectDir, githubToken string) error {
 	mcpFilePath := filepath.Join(projectDir, ".mcp.json")
 
 	// Check if .mcp.json exists
@@ -90,7 +90,7 @@ func (c *claudeConfigUpdater) UpdateGitHubToken(projectDir, githubToken string) 
 	}
 
 	// Update only the GitHub token field
-	headers["x-mcp-x-github-token"] = githubToken
+	headers["x-github-token"] = githubToken
 
 	// Marshal back to JSON with indentation
 	updatedData, err := json.MarshalIndent(mcpConfig, "", "  ")
@@ -110,8 +110,8 @@ func (c *claudeConfigUpdater) UpdateGitHubToken(projectDir, githubToken string) 
 // copilotConfigUpdater handles Copilot-specific config updates (placeholder for future)
 type copilotConfigUpdater struct{}
 
-// UpdateGitHubToken updates Copilot config (not implemented yet)
-func (c *copilotConfigUpdater) UpdateGitHubToken(projectDir, githubToken string) error {
+// ConfigureMCPServer updates Copilot config (not implemented yet)
+func (c *copilotConfigUpdater) ConfigureMCPServer(projectDir, githubToken string) error {
 	logger.Debug("Copilot config update not yet implemented, skipping")
 	// TODO: Implement when Copilot MCP config format is available
 	return nil
@@ -120,8 +120,8 @@ func (c *copilotConfigUpdater) UpdateGitHubToken(projectDir, githubToken string)
 // cursorConfigUpdater handles Cursor-specific config updates (placeholder for future)
 type cursorConfigUpdater struct{}
 
-// UpdateGitHubToken updates Cursor config (not implemented yet)
-func (c *cursorConfigUpdater) UpdateGitHubToken(projectDir, githubToken string) error {
+// ConfigureMCPServer updates Cursor config (not implemented yet)
+func (c *cursorConfigUpdater) ConfigureMCPServer(projectDir, githubToken string) error {
 	logger.Debug("Cursor config update not yet implemented, skipping")
 	// TODO: Implement when Cursor MCP config format is available
 	return nil
@@ -150,5 +150,5 @@ func UpdateAIToolConfig(aiTool, projectDir, githubToken string) error {
 		return fmt.Errorf("no config updater available for AI tool: %s", aiTool)
 	}
 
-	return updater.UpdateGitHubToken(projectDir, githubToken)
+	return updater.ConfigureMCPServer(projectDir, githubToken)
 }
