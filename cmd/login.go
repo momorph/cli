@@ -79,8 +79,6 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	if err := openBrowser(deviceCode.VerificationURI); err != nil {
 		logger.Warn("Failed to open browser: %v", err)
 		fmt.Printf("⚠  Could not open browser automatically. Please visit: %s\n\n", deviceCode.VerificationURI)
-	} else {
-		fmt.Println("")
 	}
 
 	// Poll for token
