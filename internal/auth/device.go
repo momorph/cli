@@ -56,7 +56,7 @@ func RequestDeviceCode(ctx context.Context) (*DeviceCodeResponse, error) {
 		"client_id": getClientID(),
 		"scope":     "read:user",
 	}
-	
+
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -67,7 +67,7 @@ func RequestDeviceCode(ctx context.Context) (*DeviceCodeResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
@@ -108,7 +108,7 @@ func PollForToken(ctx context.Context, deviceCode string, interval int) (*TokenR
 			if err != nil {
 				return nil, err
 			}
-			
+
 			// Check for errors
 			if token.Error != "" {
 				switch token.Error {
@@ -127,7 +127,7 @@ func PollForToken(ctx context.Context, deviceCode string, interval int) (*TokenR
 					return nil, fmt.Errorf("authorization error: %s - %s", token.Error, token.ErrorDesc)
 				}
 			}
-			
+
 			// Success
 			if token.AccessToken != "" {
 				return token, nil
@@ -149,7 +149,7 @@ func checkToken(ctx context.Context, deviceCode string) (*TokenResponse, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
