@@ -232,7 +232,7 @@ momorph init my-project --ai copilot
 
 ## 🔧 MoMorph CLI Reference
 
-The `mm` command supports the following operations:
+The `momorph` command supports the following operations:
 
 ### Commands
 
