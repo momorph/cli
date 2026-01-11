@@ -35,16 +35,8 @@ func runLogout(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Get token to show user info
-	token, err := auth.LoadToken()
-	if err != nil {
-		logger.Error("Failed to load token", err)
-		return fmt.Errorf("failed to load token: %w", err)
-	}
-
 	// Confirm logout unless --force is used
 	if !forceLogout {
-		fmt.Printf("You are currently signed in as: %s\n", token.Username)
 		fmt.Print("Are you sure you want to sign out? (y/N): ")
 
 		reader := bufio.NewReader(os.Stdin)
@@ -66,7 +58,7 @@ func runLogout(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to clear credentials: %w", err)
 	}
 
-	logger.Info("User %s logged out", token.Username)
+	logger.Info("User logged out")
 	fmt.Println("✓ Successfully signed out")
 
 	return nil
