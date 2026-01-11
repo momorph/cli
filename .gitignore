@@ -5,6 +5,7 @@
 *.so
 *.dylib
 mm
+cli
 momorph
 momorph-cli
 
