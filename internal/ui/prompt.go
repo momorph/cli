@@ -40,7 +40,7 @@ func PromptAITool() (string, error) {
 func ConfirmOverwrite(dirPath string) (bool, error) {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Printf("\n⚠  Warning: Directory '%s' is not empty.\n", dirPath)
+	fmt.Printf("⚠  Directory not empty: %s\n", ShortenPath(dirPath))
 	fmt.Print("Do you want to continue? (y/N): ")
 
 	input, err := reader.ReadString('\n')
