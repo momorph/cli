@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/momorph/cli/internal/api"
 	"github.com/momorph/cli/internal/auth"
@@ -36,6 +38,19 @@ func init() {
 func runInit(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	projectName := args[0]
+
+	// Setup signal handling for graceful cancellation
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\n\n✗ Initialization cancelled")
+		cancel()
+		os.Exit(0)
+	}()
 
 	// Check authentication
 	if !auth.IsAuthenticated() {
@@ -84,7 +99,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid AI tool: %s (must be one of: copilot, cursor, claude)", aiTool)
 	}
 
-	fmt.Printf("\n🚀 Initializing MoMorph project with %s...\n\n", aiTool)
+	fmt.Printf("🚀 Initializing MoMorph project with %s\n", aiTool)
 
 	// Create API client
 	client, err := api.NewClient()
@@ -94,9 +109,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get template metadata
-	fmt.Println("📋 Fetching template metadata...")
+	fmt.Println("📋 Fetching template...")
 	templateMeta, err := client.GetProjectTemplate(ctx, aiTool)
 	if err != nil {
+		if ctx.Err() == context.Canceled {
+			return nil // User cancelled
+		}
 		logger.Error("Failed to get template", err)
 		return fmt.Errorf("failed to get template: %w", err)
 	}
@@ -108,7 +126,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	logger.Info("  Cached: %v", templateMeta.Cached)
 
 	// Download template
-	fmt.Println("📥 Downloading template...")
+	fmt.Print("📥 Downloading...")
 	// Note: API doesn't provide size, so progress bar will show bytes downloaded
 	var progressBar *ui.ProgressBar
 
@@ -121,15 +139,19 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	})
 	if err != nil {
+		if ctx.Err() == context.Canceled {
+			return nil // User cancelled
+		}
 		logger.Error("Failed to download template", err)
 		return fmt.Errorf("failed to download template: %w", err)
 	}
 	if progressBar != nil {
 		progressBar.Finish()
+		fmt.Println()
 	}
 
 	// Extract template
-	fmt.Println("📦 Extracting template...")
+	fmt.Println("📦 Extracting...")
 	if err := template.Extract(zipPath, targetDir); err != nil {
 		logger.Error("Failed to extract template", err)
 		// Clean up on error
@@ -141,36 +163,29 @@ func runInit(cmd *cobra.Command, args []string) error {
 	os.Remove(zipPath)
 
 	// Update AI tool config with GitHub token if needed
-	fmt.Printf("🔧 Configuring %s with GitHub token...\n", aiTool)
+	fmt.Println("🔧 Configuring...")
 	token, err := auth.LoadToken()
 	if err != nil {
 		logger.Warn("Failed to load GitHub token: %v", err)
-		fmt.Println("⚠️  Warning: Could not update GitHub token in AI tool config")
 	} else if token.GitHubToken != "" {
 		if err := template.UpdateAIToolConfig(aiTool, targetDir, token.GitHubToken); err != nil {
 			logger.Warn("Failed to update AI tool config: %v", err)
-			fmt.Println("⚠️  Warning: Could not update GitHub token in AI tool config")
 		} else {
 			logger.Info("Successfully updated GitHub token in %s config", aiTool)
 		}
 	}
 
 	// Success message
-	fmt.Println("\n✓ Project initialized successfully!")
-	fmt.Printf("\n📁 Project directory: %s\n", targetDir)
-	fmt.Printf("🤖 AI tool: %s\n", aiTool)
+	fmt.Printf("\n✓ Project initialized successfully!\n")
+	fmt.Printf("  Directory: %s\n", ui.ShortenPath(targetDir))
+	fmt.Printf("  AI tool: %s\n\n", aiTool)
 
-	fmt.Println("\n📚 Next steps:")
 	if projectName != "." {
-		fmt.Printf("  1. cd %s\n", projectName)
-		fmt.Println("  2. Follow the README.md for setup instructions")
-		fmt.Println("  3. Start building with your AI assistant!")
-	} else {
-		fmt.Println("  1. Follow the README.md for setup instructions")
-		fmt.Println("  2. Start building with your AI assistant!")
+		fmt.Println("-> Next steps:")
+		fmt.Printf("  cd %s\n", projectName)
 	}
 
-	logger.Info("Project initialized at %s with %s", targetDir, aiTool)
+	fmt.Println("\n  Enjoy building with MoMorph! 🚀")
 
 	return nil
 }
