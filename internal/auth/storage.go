@@ -68,12 +68,17 @@ func getMachineID() string {
 	return "default-machine-id"
 }
 
-// SaveToken saves the authentication token to the OS credential manager
-func SaveToken(token *AuthToken) error {
+// SaveToken saves the GitHub access token to the OS credential manager
+func SaveToken(githubToken string) error {
 	// Open keyring
 	ring, err := keyring.Open(getKeyringConfig())
 	if err != nil {
 		return err
+	}
+
+	// Create token struct
+	token := &AuthToken{
+		GitHubToken: githubToken,
 	}
 
 	// Marshal token to JSON

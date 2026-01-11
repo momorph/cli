@@ -61,7 +61,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 
 	// Set Authorization header based on environment
 	if c.config.IsStaging() {
-		// Staging: Use Basic Auth ONLY (no Bearer token)
+		// Staging: Use Basic Auth
 		if c.config.HasBasicAuth() {
 			credentials := c.config.BasicAuthUsername + ":" + c.config.BasicAuthPassword
 			encoded := base64.StdEncoding.EncodeToString([]byte(credentials))
@@ -69,14 +69,8 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 		} else {
 			return nil, fmt.Errorf("staging environment requires MOMORPH_BASIC_AUTH_USERNAME and MOMORPH_BASIC_AUTH_PASSWORD")
 		}
-	} else {
-		// Production: Use Bearer token ONLY
-		if token.MoMorphToken != "" {
-			req.Header.Set("Authorization", "Bearer "+token.MoMorphToken)
-		} else {
-			return nil, fmt.Errorf("production environment requires MoMorph token")
-		}
 	}
+	// Production: x-github-token header is sufficient, no Bearer token needed
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
