@@ -36,9 +36,15 @@ func DefaultConfig() *UserConfig {
 		apiEndpoint = endpoint
 	}
 
+	// Set MCP server endpoint with environment override support
+	mcpEndpoint := "https://momorph.ai/mcp"
+	if endpoint := os.Getenv("MOMORPH_MCP_ENDPOINT"); endpoint != "" {
+		mcpEndpoint = endpoint
+	}
+
 	return &UserConfig{
 		APIEndpoint:        apiEndpoint,
-		MCPServerEndpoint:  "https://momorph.ai/mcp",
+		MCPServerEndpoint:  mcpEndpoint,
 		DefaultAITool:      "", // Prompt user
 		LogLevel:           "info",
 		LastUpdateCheck:    time.Time{},
@@ -75,6 +81,11 @@ func Load() (*UserConfig, error) {
 	// Always load Basic Auth from environment (never persisted to disk)
 	config.BasicAuthUsername = os.Getenv("MOMORPH_BASIC_AUTH_USERNAME")
 	config.BasicAuthPassword = os.Getenv("MOMORPH_BASIC_AUTH_PASSWORD")
+
+	// Allow MCP endpoint override via environment variable
+	if endpoint := os.Getenv("MOMORPH_MCP_ENDPOINT"); endpoint != "" {
+		config.MCPServerEndpoint = endpoint
+	}
 
 	return &config, nil
 }
