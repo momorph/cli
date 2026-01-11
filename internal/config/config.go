@@ -26,11 +26,6 @@ type UserConfig struct {
 func DefaultConfig() *UserConfig {
 	apiEndpoint := "https://momorph.ai"
 
-	// Check for environment-based endpoint override
-	if env := os.Getenv("MOMORPH_ENV"); env == "staging" || env == "stg" {
-		apiEndpoint = "https://stg.momorph.com"
-	}
-
 	// Allow direct override via MOMORPH_API_ENDPOINT
 	if endpoint := os.Getenv("MOMORPH_API_ENDPOINT"); endpoint != "" {
 		apiEndpoint = endpoint

@@ -139,55 +139,9 @@ The CLI will:
 
 ### 4. Environment Configuration (Optional)
 
-By default, MoMorph CLI connects to the production MoMorph API. For development or testing purposes, you can configure the CLI to use different environments:
+By default, MoMorph CLI connects to the production MoMorph API. For development or testing purposes, you can configure the CLI using environment variables.
 
-#### Using Staging Environment
-
-Staging environment requires Basic Authentication in addition to GitHub token. Set up your environment variables:
-
-```bash
-# Set environment to staging
-export MOMORPH_ENV=staging
-# or
-export MOMORPH_ENV=stg
-
-# Set Basic Auth credentials (required for staging)
-export MOMORPH_BASIC_AUTH_USERNAME=your_username
-export MOMORPH_BASIC_AUTH_PASSWORD=your_password
-
-# Now all commands will use staging API with Basic Auth
-momorph login
-momorph init my-project --ai copilot
-```
-
-#### Using .env File (Recommended)
-
-For convenience and security, you can use a `.env` file:
-
-```bash
-# Copy the example file
-cp .env.example .env
-
-# Edit .env with your credentials
-nano .env
-
-# Load environment variables (bash/zsh)
-source .env
-
-# Or use with direnv (auto-loads when entering directory)
-echo "dotenv" > .envrc
-direnv allow
-```
-
-**Important Security Notes**:
-- ✅ `.env` is already in `.gitignore` - your credentials won't be committed
-- ✅ Basic Auth credentials are NEVER saved to disk config files
-- ✅ Credentials are only read from environment variables at runtime
-- ⚠️ Keep your `.env` file secure: `chmod 600 .env`
-- ⚠️ Never share or commit your `.env` file
-- ⚠️ Use different credentials for staging and production
-
-#### Custom API Endpoint
+#### Using Custom API Endpoint
 
 ```bash
 # Use a custom API endpoint
@@ -200,25 +154,17 @@ momorph init my-project --ai copilot
 
 #### Available Environment Variables
 
-| Environment Variable          | Description                        | Required    | Example Value             |
-| ----------------------------- | ---------------------------------- | ----------- | ------------------------- |
-| `MOMORPH_ENV`                 | Predefined environment             | No          | `staging`, `stg`          |
-| `MOMORPH_API_ENDPOINT`        | Custom API endpoint URL            | No          | `https://stg.momorph.com` |
-| `MOMORPH_BASIC_AUTH_USERNAME` | Basic Auth username (staging only) | For staging | `your_username`           |
-| `MOMORPH_BASIC_AUTH_PASSWORD` | Basic Auth password (staging only) | For staging | `your_password`           |
+| Environment Variable          | Description                       | Required | Example Value            |
+| ----------------------------- | --------------------------------- | -------- | ------------------------ |
+| `MOMORPH_API_ENDPOINT`        | Custom API endpoint URL           | No       | `https://momorph.ai`     |
+| `MOMORPH_MCP_ENDPOINT`        | Custom MCP endpoint URL           | No       | `https://momorph.ai/mcp` |
+| `MOMORPH_BASIC_AUTH_USERNAME` | Basic Auth username (if required) | No       | `your_username`          |
+| `MOMORPH_BASIC_AUTH_PASSWORD` | Basic Auth password (if required) | No       | `your_password`          |
 
 **Environment Priority**:
-1. `MOMORPH_API_ENDPOINT` (highest priority)
-2. `MOMORPH_ENV`
-3. Default production URL (lowest priority)
-
-**Authentication by Environment**:
-- **Production**: GitHub OAuth → MoMorph Bearer Token
-- **Staging**: GitHub OAuth + Basic Auth (username/password)
-
-**Note**: Basic Auth is only used in staging environment. Production uses standard Bearer token authentication.
-- The `MOMORPH_API_ENDPOINT` variable takes precedence over `MOMORPH_ENV` if both are set.
-- The `MOMORPH_BASIC_AUTH` variable is used for staging environments that require Basic Authentication instead of Bearer tokens.
+1. `MOMORPH_API_ENDPOINT` (highest priority for API)
+2. `MOMORPH_MCP_ENDPOINT` (highest priority for MCP)
+3. Default production URLs (lowest priority)
 
 ## 🤖 Supported AI Agents
 
