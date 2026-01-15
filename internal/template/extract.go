@@ -11,6 +11,115 @@ import (
 	"github.com/momorph/cli/internal/logger"
 )
 
+// ExtractWithMerge extracts a ZIP file to the target directory, merging config files instead of overwriting
+func ExtractWithMerge(zipPath, targetDir string) error {
+	// Open ZIP file
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to open ZIP file: %w", err)
+	}
+	defer reader.Close()
+
+	// Ensure target directory exists
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("failed to create target directory: %w", err)
+	}
+
+	// Clean target directory path for security checks
+	cleanTarget := filepath.Clean(targetDir)
+	mergeQueue := make(map[string]*zip.File) // Files to merge after extraction
+
+	// First pass: extract non-mergeable files, queue mergeable ones
+	for _, file := range reader.File {
+		relativePath := file.Name
+		targetPath := filepath.Join(cleanTarget, relativePath)
+
+		// Validate path doesn't escape target directory (path traversal protection)
+		cleanPath := filepath.Clean(targetPath)
+		if !strings.HasPrefix(cleanPath, cleanTarget) {
+			return fmt.Errorf("invalid file path: %s (path traversal attempt)", file.Name)
+		}
+
+		mergeType, shouldMerge := ShouldMerge(relativePath)
+		_ = mergeType // Used in second pass
+
+		if shouldMerge && fileExists(targetPath) {
+			// Queue for merging - file exists and should be merged
+			mergeQueue[relativePath] = file
+			logger.Debug("Queued for merge: %s", relativePath)
+			continue
+		}
+
+		// Extract normally
+		if err := extractFile(file, cleanTarget); err != nil {
+			return fmt.Errorf("failed to extract %s: %w", file.Name, err)
+		}
+	}
+
+	// Second pass: merge queued files
+	for relativePath, zipFile := range mergeQueue {
+		targetPath := filepath.Join(cleanTarget, relativePath)
+		mergeType, _ := ShouldMerge(relativePath)
+
+		if err := mergeFileFromZip(zipFile, targetPath, mergeType); err != nil {
+			logger.Warn("Failed to merge %s, overwriting instead: %v", relativePath, err)
+			// Fallback to overwrite on merge failure
+			if err := extractFile(zipFile, cleanTarget); err != nil {
+				return fmt.Errorf("failed to extract %s: %w", zipFile.Name, err)
+			}
+		} else {
+			logger.Info("Merged: %s", relativePath)
+		}
+	}
+
+	logger.Info("Extracted %d files to: %s (merged %d config files)", len(reader.File), targetDir, len(mergeQueue))
+	return nil
+}
+
+// mergeFileFromZip extracts a file from ZIP to temp location and merges it with existing file
+func mergeFileFromZip(zipFile *zip.File, existingPath string, mergeType MergeType) error {
+	// Extract to temp file
+	tempFile, err := os.CreateTemp("", "momorph-merge-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+
+	srcFile, err := zipFile.Open()
+	if err != nil {
+		tempFile.Close()
+		return fmt.Errorf("failed to open zip file: %w", err)
+	}
+
+	if _, err := io.Copy(tempFile, srcFile); err != nil {
+		srcFile.Close()
+		tempFile.Close()
+		return fmt.Errorf("failed to copy to temp file: %w", err)
+	}
+	srcFile.Close()
+	tempFile.Close()
+
+	// Perform merge based on type
+	switch mergeType {
+	case MergeTypeJSON:
+		return MergeJSONFiles(existingPath, tempPath)
+	case MergeTypeGitignore:
+		return MergeGitignoreFiles(existingPath, tempPath)
+	default:
+		return fmt.Errorf("unknown merge type: %d", mergeType)
+	}
+}
+
+// fileExists checks if a file exists at the given path
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
 // Extract extracts a ZIP file to the target directory
 func Extract(zipPath, targetDir string) error {
 	// Open ZIP file
