@@ -32,7 +32,7 @@ func DefaultConfig() *UserConfig {
 	}
 
 	// Set MCP server endpoint with environment override support
-	mcpEndpoint := "https://momorph.ai/mcp"
+	mcpEndpoint := "https://mcp.momorph.ai/mcp"
 	if endpoint := os.Getenv("MOMORPH_MCP_ENDPOINT"); endpoint != "" {
 		mcpEndpoint = endpoint
 	}
