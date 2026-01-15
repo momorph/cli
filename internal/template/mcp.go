@@ -115,8 +115,7 @@ type copilotConfigUpdater struct{}
 
 // ConfigureMCPServer updates Copilot config (not implemented yet)
 func (c *copilotConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpServerEndpoint string) error {
-	logger.Debug("Copilot config update not yet implemented, skipping")
-	// TODO: Implement when Copilot MCP config format is available
+	logger.Debug("MCP servers are integrated via MoMorph VSCode Extension, skipping Copilot config update")
 	return nil
 }
 
