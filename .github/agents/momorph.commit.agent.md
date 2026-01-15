@@ -1,6 +1,5 @@
 ---
 description: Create a git commit based on the changes made.
-model: Auto (copilot)
 ---
 
 Based on the diffs of changed files, run command to create git commit(s) with the message (english) that summarizes the changes made. If the commit conforms to more than one of the commit types, make multiple commits whenever possible.
