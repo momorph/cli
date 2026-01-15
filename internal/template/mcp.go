@@ -120,13 +120,131 @@ func (c *copilotConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpSe
 	return nil
 }
 
-// cursorConfigUpdater handles Cursor-specific config updates (placeholder for future)
+// cursorConfigUpdater handles Cursor-specific config updates
 type cursorConfigUpdater struct{}
 
-// ConfigureMCPServer updates Cursor config (not implemented yet)
+// ConfigureMCPServer updates Cursor's global mcp.json with MoMorph server
+// Config file: ~/.cursor/mcp.json
 func (c *cursorConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpServerEndpoint string) error {
-	logger.Debug("Cursor config update not yet implemented, skipping")
-	// TODO: Implement when Cursor MCP config format is available
+	// Cursor config is in user's home directory, not project directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	cursorDir := filepath.Join(homeDir, ".cursor")
+	mcpFilePath := filepath.Join(cursorDir, "mcp.json")
+
+	// Ensure .cursor directory exists
+	if err := os.MkdirAll(cursorDir, 0755); err != nil {
+		return fmt.Errorf("failed to create .cursor directory: %w", err)
+	}
+
+	// Read existing config or create new one
+	var mcpConfig map[string]interface{}
+	if data, err := os.ReadFile(mcpFilePath); err == nil {
+		if err := json.Unmarshal(data, &mcpConfig); err != nil {
+			// If parsing fails, start fresh but log warning
+			logger.Warn("Failed to parse existing Cursor mcp.json, creating new: %v", err)
+			mcpConfig = make(map[string]interface{})
+		}
+	} else {
+		mcpConfig = make(map[string]interface{})
+	}
+
+	// Get or create mcpServers
+	var servers map[string]interface{}
+	if serversInterface, exists := mcpConfig["mcpServers"]; exists {
+		servers, _ = serversInterface.(map[string]interface{})
+	}
+	if servers == nil {
+		servers = make(map[string]interface{})
+		mcpConfig["mcpServers"] = servers
+	}
+
+	// Add/update momorph server configuration
+	servers["momorph"] = map[string]interface{}{
+		"url": mcpServerEndpoint,
+		"headers": map[string]string{
+			"x-github-token": githubToken,
+		},
+	}
+
+	// Write back to file
+	updatedData, err := json.MarshalIndent(mcpConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal Cursor mcp.json: %w", err)
+	}
+
+	if err := os.WriteFile(mcpFilePath, updatedData, 0644); err != nil {
+		return fmt.Errorf("failed to write Cursor mcp.json: %w", err)
+	}
+
+	logger.Info("Updated MoMorph config in Cursor's mcp.json at %s", mcpFilePath)
+	return nil
+}
+
+// windsurfConfigUpdater handles Windsurf-specific config updates
+type windsurfConfigUpdater struct{}
+
+// ConfigureMCPServer updates Windsurf's global mcp_config.json with MoMorph server
+// Config file: ~/.codeium/windsurf/mcp_config.json
+func (w *windsurfConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpServerEndpoint string) error {
+	// Windsurf config is in user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	windsurfDir := filepath.Join(homeDir, ".codeium", "windsurf")
+	mcpFilePath := filepath.Join(windsurfDir, "mcp_config.json")
+
+	// Ensure directory exists
+	if err := os.MkdirAll(windsurfDir, 0755); err != nil {
+		return fmt.Errorf("failed to create windsurf config directory: %w", err)
+	}
+
+	// Read existing config or create new one
+	var mcpConfig map[string]interface{}
+	if data, err := os.ReadFile(mcpFilePath); err == nil {
+		if err := json.Unmarshal(data, &mcpConfig); err != nil {
+			logger.Warn("Failed to parse existing Windsurf mcp_config.json, creating new: %v", err)
+			mcpConfig = make(map[string]interface{})
+		}
+	} else {
+		mcpConfig = make(map[string]interface{})
+	}
+
+	// Get or create mcpServers
+	var servers map[string]interface{}
+	if serversInterface, exists := mcpConfig["mcpServers"]; exists {
+		servers, _ = serversInterface.(map[string]interface{})
+	}
+	if servers == nil {
+		servers = make(map[string]interface{})
+		mcpConfig["mcpServers"] = servers
+	}
+
+	// Add/update momorph server configuration
+	// Windsurf uses "serverUrl" instead of "url"
+	servers["momorph"] = map[string]interface{}{
+		"serverUrl": mcpServerEndpoint,
+		"headers": map[string]string{
+			"x-github-token": githubToken,
+		},
+	}
+
+	// Write back to file
+	updatedData, err := json.MarshalIndent(mcpConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal Windsurf mcp_config.json: %w", err)
+	}
+
+	if err := os.WriteFile(mcpFilePath, updatedData, 0644); err != nil {
+		return fmt.Errorf("failed to write Windsurf mcp_config.json: %w", err)
+	}
+
+	logger.Info("Updated MoMorph config in Windsurf's mcp_config.json at %s", mcpFilePath)
 	return nil
 }
 
@@ -139,6 +257,8 @@ func GetConfigUpdater(aiTool string) ConfigUpdater {
 		return &copilotConfigUpdater{}
 	case "cursor":
 		return &cursorConfigUpdater{}
+	case "windsurf":
+		return &windsurfConfigUpdater{}
 	default:
 		logger.Warn("Unknown AI tool: %s, no config updater available", aiTool)
 		return nil
