@@ -15,7 +15,8 @@ func PromptAITool() (string, error) {
 	fmt.Println("  1. GitHub Copilot")
 	fmt.Println("  2. Cursor")
 	fmt.Println("  3. Claude Code")
-	fmt.Print("\nEnter your choice (1-3): ")
+	fmt.Println("  4. Windsurf")
+	fmt.Print("\nEnter your choice (1-4): ")
 
 	input, err := reader.ReadString('\n')
 	if err != nil {
@@ -31,6 +32,8 @@ func PromptAITool() (string, error) {
 		return "cursor", nil
 	case "3":
 		return "claude", nil
+	case "4":
+		return "windsurf", nil
 	default:
 		return "", fmt.Errorf("invalid choice: %s", input)
 	}

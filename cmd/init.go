@@ -14,6 +14,7 @@ import (
 	"github.com/momorph/cli/internal/logger"
 	"github.com/momorph/cli/internal/template"
 	"github.com/momorph/cli/internal/ui"
+	"github.com/momorph/cli/internal/vscode"
 	"github.com/spf13/cobra"
 )
 
@@ -92,12 +93,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Validate AI tool
 	validTools := map[string]bool{
-		"copilot": true,
-		"cursor":  true,
-		"claude":  true,
+		"copilot":  true,
+		"cursor":   true,
+		"claude":   true,
+		"windsurf": true,
 	}
 	if !validTools[aiTool] {
-		return fmt.Errorf("invalid AI tool: %s (must be one of: copilot, cursor, claude)", aiTool)
+		return fmt.Errorf("invalid AI tool: %s (must be one of: copilot, cursor, claude, windsurf)", aiTool)
 	}
 
 	fmt.Printf("🚀 Initializing MoMorph project with %s\n", aiTool)
@@ -151,9 +153,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Extract template
+	// Extract template (with config file merging)
 	fmt.Println("📦 Extracting...")
-	if err := template.Extract(zipPath, targetDir); err != nil {
+	if err := template.ExtractWithMerge(zipPath, targetDir); err != nil {
 		logger.Error("Failed to extract template", err)
 		// Clean up on error
 		template.CleanupPartial(targetDir)
@@ -180,6 +182,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 				logger.Info("Successfully updated GitHub token in %s config", aiTool)
 			}
 		}
+	}
+
+	// Install VS Code extension
+	fmt.Println("📦 Installing VS Code extension...")
+	result := vscode.InstallExtension()
+	if result.Error != nil {
+		logger.Warn("Extension installation failed: %v", result.Error)
+		fmt.Printf("  ⚠ %s\n", result.Message)
+	} else if result.Installed {
+		fmt.Printf("  ✓ %s\n", result.Message)
+	} else {
+		fmt.Printf("  ⚠ %s\n", result.Message)
 	}
 
 	// Success message

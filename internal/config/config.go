@@ -125,9 +125,10 @@ func (c *UserConfig) Validate() error {
 	// Validate AI tool if set
 	if c.DefaultAITool != "" {
 		validTools := map[string]bool{
-			"copilot": true,
-			"cursor":  true,
-			"claude":  true,
+			"copilot":  true,
+			"cursor":   true,
+			"claude":   true,
+			"windsurf": true,
 		}
 		if !validTools[c.DefaultAITool] {
 			return os.ErrInvalid
