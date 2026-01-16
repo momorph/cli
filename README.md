@@ -354,7 +354,7 @@ Generate API specs for the following Figma design items:
 ### E2E Testing Commands
 
 <details>
-<summary><code>/momorph.e2e-setup</code> - Set up E2E testing environment</summary>
+<summary><code>/momorph.setupe2e</code> - Set up E2E testing environment</summary>
 
 **Purpose:** Automatically set up and generate an E2E testing environment using Playwright (run once only).
 
@@ -372,7 +372,7 @@ Set up a Playwright project for me.
 </details>
 
 <details>
-<summary><code>/momorph.e2e-generation</code> - Generate Playwright E2E tests</summary>
+<summary><code>/momorph.writee2e</code> - Generate Playwright E2E tests</summary>
 
 **Purpose:** Automatically generate Playwright E2E tests (after test code review is available).
 
@@ -393,7 +393,7 @@ URL: ...
 </details>
 
 <details>
-<summary><code>/momorph.e2e-review-test</code> - Review E2E test code</summary>
+<summary><code>/momorph.reviewe2e</code> - Review E2E test code</summary>
 
 **Purpose:** Automatically review generated E2E test code.
 
