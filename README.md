@@ -63,7 +63,7 @@ momorph version
 </details>
 
 <details>
-<summary><strong>Option 2: Chocolatey (Windows)</strong> (coming soon)</summary>
+<summary><strong>Option 2: Chocolatey (Windows)</strong></summary>
 
 ```sh
 choco install momorph

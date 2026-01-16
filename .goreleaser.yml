@@ -44,6 +44,27 @@ brews:
     test: |
       system "#{bin}/momorph", "version"
 
+chocolateys:
+  - name: momorph
+    owners: momorph
+    authors: MoMorph Team
+    project_url: https://github.com/momorph/cli
+    license_url: https://github.com/momorph/cli/blob/main/LICENSE
+    require_license_acceptance: false
+    project_source_url: https://github.com/momorph/cli
+    docs_url: https://github.com/momorph/cli#readme
+    bug_tracker_url: https://github.com/momorph/cli/issues
+    tags: "cli momorph ai ai-driven-development"
+    summary: MoMorph CLI - AI-powered development workflow tool
+    description: |
+      MoMorph CLI helps developers integrate AI coding assistants
+      into their projects with a single command.
+    release_notes: "https://github.com/momorph/cli/releases/tag/v{{ .Version }}"
+    api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
+    source_repo: "https://push.chocolatey.org/"
+    skip_publish: false
+    goamd64: v1
+
 archives:
   - name_template: "momorph-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats:
