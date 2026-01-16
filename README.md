@@ -1,11 +1,7 @@
 <div align="center">
-    <h1>🔮 MoMorph CLI</h1>
-    <h3><em>Initialize MoMorph projects for AI-driven development</em></h3>
+    <h1>MoMorph CLI</h1>
+    <h3><em>Transform Figma designs into production-ready code</em></h3>
 </div>
-
-<p align="center">
-    <strong>A command-line tool for initializing MoMorph projects during development. MoMorph CLI helps developers set up design-driven AI development environments by connecting UI designs with specifications, tests, and implementation through AI agent collaboration.</strong>
-</p>
 
 <p align="center">
     <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go" alt="Go Version"/></a>
@@ -16,76 +12,46 @@
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [🤔 What is MoMorph CLI?](#-what-is-momorph-cli)
-- [⚡ Get Started](#-get-started)
-- [🤖 Supported AI Agents](#-supported-ai-agents)
-- [🔧 MoMorph CLI Reference](#-mm-cli-reference)
-- [💻 Development](#-development)
+- [⚡ Getting Started](#-getting-started)
+  - [1. Install MoMorph CLI](#1-install-momorph-cli)
+  - [2. Authenticate with GitHub](#2-authenticate-with-github)
+  - [3. Initialize your MoMorph project](#3-initialize-your-momorph-project)
+- [🚀 MoMorph Commands](#-momorph-commands)
+  - [Context Commands](#context-commands)
+  - [Gen Code Commands](#gen-code-commands)
+  - [E2E Testing Commands](#e2e-testing-commands)
+- [🔧 MoMorph CLI Reference](#-momorph-cli-reference)
 - [📄 License](#-license)
 
 ## 🤔 What is MoMorph CLI?
 
-**MoMorph** is an enterprise software development collaboration platform that leverages AI to connect the entire development process, with UI design as the central axis. It seamlessly integrates with AI agents to automate the loop of "Design → AI → Specifications → Tests → Implementation" in a flexible and continuous manner.
+MoMorph CLI is a command-line tool (CLI) used to initialize, manage, and operate projects following an AI-Driven Development approach, where Figma design serves as the starting point of the entire software development lifecycle.
 
-**MoMorph CLI** is the command-line tool that initializes MoMorph projects during the development phase. It sets up the necessary project structure, configurations, and workflows to enable design-driven AI development, helping teams eliminate information gaps and standardize development processes.
+MoMorph helps transform:
 
-### About MoMorph Platform
+> **Design → Specs → Test Cases → Code**
 
-MoMorph enables:
-- **Design-Driven Development**: Start from UI designs in Figma and automatically generate specifications, test cases, and code
-- **AI-Powered Collaboration**: Seamlessly connect with AI coding assistants (GitHub Copilot, Cursor, Claude Code) throughout the development lifecycle
-- **Comprehensive Integration**: From specification generation to test case creation, code generation, and GitHub integration - all supported by AI
-- **Multilingual Support**: Suitable for multinational team development environments
+into an automated, consistent, and repeatable workflow, powered by AI.
 
-### Key Benefits of MoMorph CLI
-
-- **Standardized Setup**: Initialize projects with MoMorph's design-driven development structure
-- **AI-Ready Configuration**: Pre-configure prompts, rules, and agent modes for optimal AI collaboration
-- **Quick Initialization**: Set up complete MoMorph development environments in seconds
-- **Multi-Platform**: Works on macOS, Linux, and Windows
-- **Version Control**: Keep configurations synchronized with the latest MoMorph templates
-
-## ⚡ Get Started
+## ⚡ Getting Started
 
 ### 1. Install MoMorph CLI
 
 Choose your preferred installation method:
 
-#### Option 1: Homebrew (macOS/Linux)
+<details>
+<summary><strong>Option 1: Homebrew (macOS, Linux)</strong> (Recommended)</summary>
 
-```bash
+```sh
 brew install momorph/tap/momorph-cli
 ```
 
 Then use the tool directly:
 
-```bash
-# Login with GitHub
-momorph login
-
-# Initialize new MoMorph project
-momorph init <PROJECT_NAME> --ai copilot
-
-# Or initialize in existing project
-momorph init . --ai cursor
-```
-
-#### Option 2: Chocolatey (Windows)
-
-```bash
-choco install momorph
-```
-
-#### Option 3: Shell Script (Linux/macOS)
-
-```bash
-curl -fsSL https://momorph.ai/cli/stable/install.sh | bash
-```
-
-#### Option 4: Go Install
-
-```bash
-go install github.com/momorph/cli@latest
+```sh
+momorph version
 ```
 
 **Benefits of package manager installation:**
@@ -94,7 +60,37 @@ go install github.com/momorph/cli@latest
 - Better dependency management
 - Cleaner system configuration
 
-#### Verify setup
+</details>
+
+<details>
+<summary><strong>Option 2: Chocolatey (Windows)</strong> (coming soon)</summary>
+
+```sh
+choco install momorph
+```
+
+</details>
+
+<details>
+<summary><strong>Option 3: Shell Script (Linux/macOS)</strong> (coming soon)</summary>
+
+```sh
+curl -fsSL https://momorph.ai/cli/stable/install.sh | bash
+```
+
+</details>
+
+<details>
+<summary><strong>Option 4: Go Install</strong></summary>
+
+```sh
+go install github.com/momorph/cli@latest
+```
+
+</details>
+
+<details>
+<summary><strong>Verify setup</strong></summary>
 
 Check your account information and configuration:
 
@@ -105,6 +101,8 @@ momorph whoami
 # Check CLI version
 momorph version
 ```
+
+</details>
 
 ### 2. Authenticate with GitHub
 
@@ -121,66 +119,301 @@ The CLI will display a user code and authentication link. Open the link in your 
 Use the `momorph init` command to set up a MoMorph project with design-driven AI development workflow:
 
 ```bash
-# Initialize in a new directory
-momorph init viblo --ai copilot
+momorph init new-directory      # Initialize in a new directory
+momorph init .                  # Initialize in current directory
 
-# Initialize in current directory
-momorph init . --ai cursor
-
-# Initialize without confirmation (force mode)
-momorph init . --force --ai claude
+momorph init . --ai copilot         # Copilot
+momorph init . --ai claude          # Claude Code
+momorph init . --ai cursor          # Cursor
+momorph init . --ai windsurf        # Windsurf
 ```
 
 The CLI will:
 - Download the latest MoMorph project template from backend
 - Extract configuration files (`.claude`, `.github`, prompt files, workflow scripts, etc.)
 - Set up the project structure for design-driven AI development
-- Configure AI agent integration for the specified assistant (Copilot, Cursor, or Claude Code)
+- Configure AI agent integration for the specified assistant (`Copilot`, `Cursor`, or `Claude Code`)
 
-### 4. Environment Configuration (Optional)
+After that, enjoy using MoMorph commands in the next section! 🚀🚀🚀
 
-By default, MoMorph CLI connects to the production MoMorph API. For development or testing purposes, you can configure the CLI using environment variables.
+## 🚀 MoMorph Commands
 
-#### Using Custom API Endpoint
+In addition to the CLI commands, **MoMorph provides a set of AI-agent workflow commands**, designed to guide the AI-Driven Development process from specification to implementation.
 
-```bash
-# Use a custom API endpoint
-export MOMORPH_API_ENDPOINT=https://custom.momorph.com
+> ⚠️ **Note:**
+> - These are **workflow commands used within the MoMorph flow with AI agents**, not CLI commands.
+> - They operate on templates and prompts generated by `momorph init`.
 
-# Commands will now use the custom endpoint
-momorph login
-momorph init my-project --ai copilot
+### Context Commands
+
+<details>
+<summary><code>/momorph.specs</code> - Generate specifications for a screen</summary>
+
+**Purpose:** Generate specifications for a screen based on the Figma design image and associated screen metadata.
+
+**Input:** Figma Design (Figma File Key, Frame ID)
+
+**Output:** File: `.momorph/specs/[screen-name].csv`
+
+**Example Command:**
+```
+Generate specs based on the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
 ```
 
-#### Available Environment Variables
+</details>
 
-| Environment Variable          | Description                       | Required | Example Value            |
-| ----------------------------- | --------------------------------- | -------- | ------------------------ |
-| `MOMORPH_API_ENDPOINT`        | Custom API endpoint URL           | No       | `https://momorph.ai`     |
-| `MOMORPH_MCP_ENDPOINT`        | Custom MCP endpoint URL           | No       | `https://momorph.ai/mcp` |
-| `MOMORPH_BASIC_AUTH_USERNAME` | Basic Auth username (if required) | No       | `your_username`          |
-| `MOMORPH_BASIC_AUTH_PASSWORD` | Basic Auth password (if required) | No       | `your_password`          |
+<details>
+<summary><code>/momorph.createtestcases</code> - Generate test cases CSV</summary>
 
-**Environment Priority**:
-1. `MOMORPH_API_ENDPOINT` (highest priority for API)
-2. `MOMORPH_MCP_ENDPOINT` (highest priority for MCP)
-3. Default production URLs (lowest priority)
+**Purpose:** Generate a CSV file containing a list of test cases for the specified screen based on the specs imported into MoMorph.
 
-## 🤖 Supported AI Agents
+**Input:** Figma Design (Figma File Key, Frame ID)
 
-| Agent                                                 | Support | Notes                            |
-| ----------------------------------------------------- | ------- | -------------------------------- |
-| [GitHub Copilot](https://github.com/features/copilot) | ✅       | Full support with custom prompts |
-| [Cursor](https://cursor.sh/)                          | 🔜       | Coming soon                      |
-| [Claude Code](https://www.anthropic.com/claude-code)  | 🔜       | Coming soon                      |
+**Output:** File: `.momorph/testcases/{file_key}/{frame_id}-{frame-name}.csv`
 
-> Currently, only GitHub Copilot is fully supported. Support for Cursor and Claude Code is coming soon. If you encounter issues, please [open an issue](https://github.com/momorph/cli/issues/new).
+**Example Command:**
+```
+Generate test cases based on the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.updatetestcases</code> - Update existing test cases</summary>
+
+**Purpose:** Update existing test cases to match the latest version of the specifications.
+
+**Input:** Figma Design (Figma File Key, Frame ID)
+
+**Output:** File: `.momorph/testcases/{file_key}/{frame_id}-{frame-name}.csv`
+
+**Example Command:**
+```
+Update test cases based on the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+---
+
+### Gen Code Commands
+
+<details>
+<summary><code>/momorph.constitution</code> - Initialize project constitution</summary>
+
+**Purpose:** Initialize or update the project "constitution" (`.momorph/constitution.md`) containing technical standards, coding rules, folder structure, and governance policies.
+
+**Input:** A short description of rules, coding standards, conventions, etc.
+
+**Output:** `.momorph/constitution.md`
+
+**Example Command:**
+```
+Generate constitution
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.specify</code> - Generate feature specifications from Figma</summary>
+
+**Purpose:** Generate feature specifications from a Figma frame — produces `spec.md` (user stories, acceptance criteria) and `design-style.md` (tokens, CSS, node IDs) as sources for implementation.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:**
+1. Path: `.momorph/specs/{frameid-name}/spec.md`
+2. Path: `.momorph/specs/{frameid-name}/design-style.md`
+
+**Example Command:**
+```
+Build specifications for the project based on the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.plan</code> - Generate implementation plan</summary>
+
+**Purpose:** Generate a detailed implementation plan from specs (architecture, files to create/modify, dependencies, strategy) and hand off to `momorph.tasks`.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:** Path: `.momorph/specs/{frameid-name}/plan.md`
+
+**Example Command:**
+```
+Plan for the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.tasks</code> - Break down plan into tasks</summary>
+
+**Purpose:** Break down the plan into executable tasks (`tasks.md`) by user story, with detailed checklists, dependencies, and parallelization hints.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:** Path: `.momorph/specs/{frameid-name}/tasks.md`
+
+**Example Command:**
+```
+Break tasks for the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.implement</code> - Execute implementation</summary>
+
+**Purpose:** "Implementation mode" — execute tasks, write code following the constitution and design-style, run tests, and ensure pixel-perfect UI alignment with Figma.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:**
+- Backend source code
+- Frontend source code
+- Unit test source code
+
+**Example Command:**
+```
+Execute the implementation plan by processing and executing all tasks defined for the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.commit</code> - Create Git commits</summary>
+
+**Purpose:** Create Git commits from the current diff following Conventional Commits rules; split commits if needed to match commit types.
+
+**Input:** No input required
+
+**Output:** New commit(s) created
+
+**Example Command:**
+```
+/momorph.commit
+```
+
+or
+
+```
+/momorph.commit only staged files
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.database</code> - Generate database schemas</summary>
+
+**Purpose:** Analyze Figma screens to design database schemas, generate SQL schema, ERD (Mermaid), and database analysis documentation.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:**
+1. `.momorph/contexts/DATABASE_ANALYSIS.md` – Screen analysis
+2. `.momorph/contexts/database-schema.sql` – SQL schema
+3. `.momorph/contexts/DATABASE_DESIGN.mmd` – ERD diagram
+
+**Example Command:**
+```
+Generate database schemas for the Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.apispecs</code> - Generate OpenAPI specifications</summary>
+
+**Purpose:** Generate OpenAPI specifications (`api-docs.yaml`) and backend test cases from Figma designs — defining endpoints, schemas, and functional tests.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:** Controllers and Routes files generated for all specified APIs. Route handler implementations are left empty.
+
+**Example Command:**
+```
+Generate API specs for the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+---
+
+### E2E Testing Commands
+
+<details>
+<summary><code>/momorph.e2e-setup</code> - Set up E2E testing environment</summary>
+
+**Purpose:** Automatically set up and generate an E2E testing environment using Playwright (run once only).
+
+**Input:** Figma File Key, Frame ID
+
+**Output:** A fully initialized E2E test folder
+
+**Example Command:**
+```
+Set up a Playwright project for me.
+
+<Paste your project configuration here>
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.e2e-generation</code> - Generate Playwright E2E tests</summary>
+
+**Purpose:** Automatically generate Playwright E2E tests (after test code review is available).
+
+**Input:**
+1. Figma File Key, Frame ID
+2. URL of the screen to be tested
+
+**Output:** Complete Playwright E2E test code for the specified screen
+
+**Example Command:**
+```
+fileKey: `i09vM3jClQiu8cwXsMo6uy`
+signup frame_link_id: "9276:19630"
+
+URL: ...
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.e2e-review-test</code> - Review E2E test code</summary>
+
+**Purpose:** Automatically review generated E2E test code.
+
+**Input:** (Optional) Specific screen or test file
+
+**Output:** Review report of the generated E2E tests. May include fixes if bugs or test failures are found.
+
+**Example Command:**
+```
+Review the E2E test code for me.
+
+<You may specify a specific screen or test file to review>
+```
+
+</details>
+
 
 ## 🔧 MoMorph CLI Reference
 
 The `momorph` command supports the following operations:
-
-### Commands
 
 | Command   | Description                                                 |
 | --------- | ----------------------------------------------------------- |
@@ -190,95 +423,6 @@ The `momorph` command supports the following operations:
 | `update`  | Update MoMorph CLI to the latest version                    |
 | `version` | Show MoMorph CLI version information                        |
 | `help`    | Display help information                                    |
-
-### Examples
-
-```bash
-# Basic project initialization
-momorph init my-project
-
-# Initialize with specific AI assistant
-momorph init my-project --ai copilot
-momorph init my-project --ai cursor
-momorph init my-project --ai claude
-
-# Initialize in current directory
-momorph init . --ai copilot
-
-# Force initialization without confirmation
-momorph init . --force --ai cursor
-
-# Check account information
-momorph whoami
-
-# Update CLI
-momorph update
-
-# Check version
-momorph version
-```
-
-## 💻 Development
-
-### Setup
-
-```bash
-# Clone repository
-git clone https://github.com/momorph/cli.git
-cd momorph-cli
-
-# Install dependencies
-go mod download
-
-# Build
-go run main.go -- <command>
-```
-
-### Project Structure
-
-```
-momorph-cli/
-├── cmd/                 # CLI commands
-│   ├── login.go
-│   ├── init.go
-│   ├── whoami.go
-│   ├── update.go
-│   ├── version.go
-│   └── root.go
-├── internal/            # Internal packages
-│   ├── auth/           # Authentication logic
-│   ├── api/            # API client
-│   ├── config/         # Configuration management
-│   ├── template/       # Template management
-│   └── ui/             # UI components
-├── pkg/                # Public packages
-├── go.mod
-├── go.sum
-├── main.go
-└── README.md
-```
-
-### Running Tests
-
-```bash
-go test ./...
-
-# With coverage
-go test -cover ./...
-
-# Verbose output
-go test -v ./...
-```
-
-### Building for Release
-
-```bash
-# Create snapshot release
-goreleaser release --snapshot --clean
-
-# Build for all platforms
-goreleaser build --snapshot --clean
-```
 
 ## 📄 License
 
