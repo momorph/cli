@@ -66,7 +66,7 @@ momorph version
 <summary><strong>Option 2: Chocolatey (Windows)</strong></summary>
 
 ```sh
-choco install momorph
+choco install momorph-cli
 ```
 
 </details>

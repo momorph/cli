@@ -45,7 +45,7 @@ brews:
       system "#{bin}/momorph", "version"
 
 chocolateys:
-  - name: momorph
+  - name: momorph-cli
     owners: momorph
     authors: MoMorph Team
     project_url: https://github.com/momorph/cli
