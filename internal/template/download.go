@@ -36,24 +36,25 @@ func Download(url, checksum string, progress ProgressCallback) (string, error) {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	tempPath := tempFile.Name()
-	defer func() {
+
+	// Cleanup function for error cases
+	cleanup := func() {
 		tempFile.Close()
-		// Clean up temp file on error
-		if err != nil {
-			os.Remove(tempPath)
-		}
-	}()
+		os.Remove(tempPath)
+	}
 
 	// Create HTTP client and request
 	client := utils.NewHTTPClient()
 	resp, err := client.Get(url)
 	if err != nil {
+		cleanup()
 		return "", fmt.Errorf("failed to download: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
+		cleanup()
 		return "", fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
@@ -77,6 +78,7 @@ func Download(url, checksum string, progress ProgressCallback) (string, error) {
 	// Download file
 	_, err = io.Copy(multiWriter, reader)
 	if err != nil {
+		cleanup()
 		return "", fmt.Errorf("failed to download file: %w", err)
 	}
 
@@ -84,14 +86,22 @@ func Download(url, checksum string, progress ProgressCallback) (string, error) {
 	if checksum != "" {
 		computedChecksum := hex.EncodeToString(hasher.Sum(nil))
 		if computedChecksum != checksum {
+			cleanup()
 			return "", fmt.Errorf("checksum mismatch: expected %s, got %s", checksum, computedChecksum)
 		}
 		logger.Debug("Checksum verified: %s", checksum)
 	}
 
+	// Close temp file BEFORE renaming (required on Windows)
+	if err := tempFile.Close(); err != nil {
+		os.Remove(tempPath)
+		return "", fmt.Errorf("failed to close temp file: %w", err)
+	}
+
 	// Move temp file to final location
 	finalPath := strings.TrimSuffix(tempPath, ".tmp")
 	if err := os.Rename(tempPath, finalPath); err != nil {
+		os.Remove(tempPath)
 		return "", fmt.Errorf("failed to save file: %w", err)
 	}
 
