@@ -49,9 +49,11 @@ chocolateys:
     owners: momorph
     authors: MoMorph Team
     project_url: https://github.com/momorph/cli
+    icon_url: https://raw.githubusercontent.com/momorph/cli/main/assets/icon.png
     license_url: https://github.com/momorph/cli/blob/main/LICENSE
     require_license_acceptance: false
-    project_source_url: https://github.com/momorph/cli
+    project_source_url: https://github.com/momorph/cli/tree/main
+    package_source_url: https://github.com/momorph/cli/blob/main/.goreleaser.yml
     docs_url: https://github.com/momorph/cli#readme
     bug_tracker_url: https://github.com/momorph/cli/issues
     tags: "cli momorph ai ai-driven-development"
