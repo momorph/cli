@@ -46,6 +46,7 @@ brews:
 
 chocolateys:
   - name: momorph-cli
+    title: MoMorph CLI
     owners: momorph
     authors: MoMorph Team
     project_url: https://github.com/momorph/cli
