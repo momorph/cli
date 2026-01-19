@@ -54,3 +54,19 @@ func ConfirmOverwrite(dirPath string) (bool, error) {
 	input = strings.TrimSpace(strings.ToLower(input))
 	return input == "y" || input == "yes", nil
 }
+
+// ConfirmUpdate prompts the user to confirm updating to a new version
+func ConfirmUpdate(currentVersion, newVersion string) (bool, error) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Printf("Do you want to update from %s to %s? (y/N): ", currentVersion, newVersion)
+
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+
+	input = strings.TrimSpace(strings.ToLower(input))
+	// Default to yes (empty input or "y"/"yes")
+	return input == "y" || input == "yes", nil
+}

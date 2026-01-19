@@ -40,7 +40,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	release, err := update.GetLatestRelease(ctx)
 	if err != nil {
 		logger.Error("Failed to check for updates", err)
-		return fmt.Errorf("failed to check for updates: %w", err)
+		fmt.Println("\n✗ Failed to check for updates")
+		fmt.Println("  Please check your internet connection and try again.")
+		return nil
 	}
 
 	latestVersion := release.GetVersion()
@@ -75,23 +77,38 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	asset, err := release.GetAssetForPlatform()
 	if err != nil {
 		logger.Error("Failed to find release asset", err)
-		return fmt.Errorf("failed to find release for your platform: %w", err)
+		fmt.Println("\n✗ No release available for your platform")
+		fmt.Println("  Please download manually from: " + release.HTMLURL)
+		return nil
+	}
+
+	// Confirm update
+	confirm, err := ui.ConfirmUpdate(currentVersion, latestVersion)
+	if err != nil {
+		logger.Error("Failed to get confirmation", err)
+		return nil
+	}
+	if !confirm {
+		fmt.Println("Update cancelled")
+		return nil
 	}
 
 	logger.Debug("Downloading: %s", asset.Name)
 
 	// Download and install
-	fmt.Printf("📥 Downloading %s...\n", asset.Name)
+	fmt.Printf("\n📥 Downloading %s...\n", asset.Name)
 	progressBar := ui.NewProgressBar(asset.Size)
 
-	err = update.DownloadAndReplace(ctx, asset, func(downloaded, total int64) {
+	installedPath, err := update.DownloadAndReplace(ctx, asset, func(downloaded, total int64) {
 		progressBar.Update(downloaded)
 	})
 	progressBar.Finish()
 
 	if err != nil {
 		logger.Error("Failed to update", err)
-		return fmt.Errorf("failed to update: %w", err)
+		fmt.Println("\n✗ Failed to update")
+		fmt.Println("  Please try again or download manually from: " + release.HTMLURL)
+		return nil
 	}
 
 	fmt.Println(lipgloss.NewStyle().
@@ -99,7 +116,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		Bold(true).
 		Render("\n✓ Updated successfully!"))
 
-	fmt.Printf("  Restart the CLI to use version %s\n", latestVersion)
+	fmt.Printf("  Binary: %s\n", installedPath)
 
 	return nil
 }

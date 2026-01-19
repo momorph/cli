@@ -211,7 +211,7 @@ Update test cases based on the following Figma design items:
 
 **Purpose:** Analyze Figma screens to design database schemas, generate SQL schema, ERD (Mermaid), and database analysis documentation.
 
-**Input:** Figma File Key, Frame ID
+**Input:** Figma File Key, Frame ID (Optional)
 
 **Output:**
 1. `.momorph/contexts/DATABASE_ANALYSIS.md` – Screen analysis
@@ -221,7 +221,7 @@ Update test cases based on the following Figma design items:
 **Example Command:**
 ```
 Generate database schemas for the Figma design items:
-1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`
 ```
 
 </details>

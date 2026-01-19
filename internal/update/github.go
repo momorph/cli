@@ -14,8 +14,8 @@ import (
 
 const (
 	// GitHub repository for releases
-	repoOwner = "sun-asterisk-internal"
-	repoName  = "momorph-cli"
+	repoOwner = "momorph"
+	repoName  = "cli"
 
 	// GitHub API endpoints
 	releasesAPI = "https://api.github.com/repos/%s/%s/releases/latest"
@@ -105,18 +105,16 @@ func (r *Release) GetAssetForPlatform() (*Asset, error) {
 		return nil, fmt.Errorf("unsupported architecture: %s", arch)
 	}
 
-	// Build expected asset name patterns
-	patterns := []string{
-		fmt.Sprintf("momorph-cli_%s_%s", os, mappedArch),
-		fmt.Sprintf("mm_%s_%s", os, mappedArch),
-	}
+	// Build expected asset name suffix (after version number)
+	// Filename format: momorph-cli_<version>_<os>_<arch>.tar.gz
+	suffix := fmt.Sprintf("_%s_%s", os, mappedArch)
 
 	// Search for matching asset
 	for _, asset := range r.Assets {
-		for _, pattern := range patterns {
-			if strings.Contains(strings.ToLower(asset.Name), strings.ToLower(pattern)) {
-				return &asset, nil
-			}
+		name := strings.ToLower(asset.Name)
+		// Check if asset name contains the platform suffix and starts with expected prefix
+		if strings.HasPrefix(name, "momorph-cli_") && strings.Contains(name, strings.ToLower(suffix)) {
+			return &asset, nil
 		}
 	}
 

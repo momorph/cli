@@ -49,6 +49,8 @@ var rootCmd = &cobra.Command{
 	},
 	// Enable command suggestions for typos
 	SuggestionsMinimumDistance: 2,
+	// Don't show usage when command returns an error
+	SilenceUsage: true,
 }
 
 func init() {
