@@ -41,7 +41,7 @@ into an automated, consistent, and repeatable workflow, powered by AI.
 
 Choose your preferred installation method:
 
-<details>
+<details open>
 <summary><strong>Option 1: Homebrew (macOS, Linux)</strong> (Recommended)</summary>
 
 ```sh
@@ -72,7 +72,16 @@ choco install momorph-cli
 </details>
 
 <details>
-<summary><strong>Option 3: Shell Script (Linux/macOS)</strong> (coming soon)</summary>
+<summary><strong>Option 3: PowerShell (Windows)</strong></summary>
+
+```powershell
+irm https://momorph.ai/cli/stable/install.ps1 | iex
+```
+
+</details>
+
+<details>
+<summary><strong>Option 4: Shell Script (Linux/macOS)</strong></summary>
 
 ```sh
 curl -fsSL https://momorph.ai/cli/stable/install.sh | bash
@@ -81,7 +90,7 @@ curl -fsSL https://momorph.ai/cli/stable/install.sh | bash
 </details>
 
 <details>
-<summary><strong>Option 4: Go Install</strong></summary>
+<summary><strong>Option 5: Go Install</strong></summary>
 
 ```sh
 go install github.com/momorph/cli@latest
@@ -192,6 +201,43 @@ Generate test cases based on the following Figma design items:
 **Example Command:**
 ```
 Update test cases based on the following Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.database</code> - Generate database schemas</summary>
+
+**Purpose:** Analyze Figma screens to design database schemas, generate SQL schema, ERD (Mermaid), and database analysis documentation.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:**
+1. `.momorph/contexts/DATABASE_ANALYSIS.md` – Screen analysis
+2. `.momorph/contexts/database-schema.sql` – SQL schema
+3. `.momorph/contexts/DATABASE_DESIGN.mmd` – ERD diagram
+
+**Example Command:**
+```
+Generate database schemas for the Figma design items:
+1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
+```
+
+</details>
+
+<details>
+<summary><code>/momorph.apispecs</code> - Generate OpenAPI specifications</summary>
+
+**Purpose:** Generate OpenAPI specifications (`api-docs.yaml`) and backend test cases from Figma designs — defining endpoints, schemas, and functional tests.
+
+**Input:** Figma File Key, Frame ID
+
+**Output:** Controllers and Routes files generated for all specified APIs. Route handler implementations are left empty.
+
+**Example Command:**
+```
+Generate API specs for the following Figma design items:
 1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
 ```
 
@@ -308,43 +354,6 @@ or
 
 ```
 /momorph.commit only staged files
-```
-
-</details>
-
-<details>
-<summary><code>/momorph.database</code> - Generate database schemas</summary>
-
-**Purpose:** Analyze Figma screens to design database schemas, generate SQL schema, ERD (Mermaid), and database analysis documentation.
-
-**Input:** Figma File Key, Frame ID
-
-**Output:**
-1. `.momorph/contexts/DATABASE_ANALYSIS.md` – Screen analysis
-2. `.momorph/contexts/database-schema.sql` – SQL schema
-3. `.momorph/contexts/DATABASE_DESIGN.mmd` – ERD diagram
-
-**Example Command:**
-```
-Generate database schemas for the Figma design items:
-1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
-```
-
-</details>
-
-<details>
-<summary><code>/momorph.apispecs</code> - Generate OpenAPI specifications</summary>
-
-**Purpose:** Generate OpenAPI specifications (`api-docs.yaml`) and backend test cases from Figma designs — defining endpoints, schemas, and functional tests.
-
-**Input:** Figma File Key, Frame ID
-
-**Output:** Controllers and Routes files generated for all specified APIs. Route handler implementations are left empty.
-
-**Example Command:**
-```
-Generate API specs for the following Figma design items:
-1. Signin – fileKey: `i09vM3jClQiu8cwXsMo6uy`, frameId: `9276:19531`
 ```
 
 </details>
