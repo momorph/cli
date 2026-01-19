@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,6 +21,8 @@ import (
 
 var (
 	aiTool string
+	// ErrUserCancelled is returned when the user cancels an operation
+	ErrUserCancelled = errors.New("user cancelled")
 )
 
 var initCmd = &cobra.Command{
@@ -79,6 +82,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Check if directory exists and is not empty
 	if err := checkDirectory(targetDir); err != nil {
+		if errors.Is(err, ErrUserCancelled) {
+			fmt.Println("Initialization cancelled")
+			return nil
+		}
 		return err
 	}
 
@@ -241,7 +248,7 @@ func checkDirectory(dirPath string) error {
 			return fmt.Errorf("failed to get confirmation: %w", err)
 		}
 		if !confirm {
-			return fmt.Errorf("initialization cancelled")
+			return ErrUserCancelled
 		}
 	}
 
