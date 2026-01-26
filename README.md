@@ -75,7 +75,7 @@ choco install momorph-cli
 <summary><strong>Option 3: PowerShell (Windows)</strong></summary>
 
 ```powershell
-irm https://momorph.ai/cli/stable/install.ps1 | iex
+irm https://raw.githubusercontent.com/momorph/cli/refs/heads/main/scripts/install.ps1 | iex
 ```
 
 </details>
@@ -84,7 +84,7 @@ irm https://momorph.ai/cli/stable/install.ps1 | iex
 <summary><strong>Option 4: Shell Script (Linux/macOS)</strong></summary>
 
 ```sh
-curl -fsSL https://momorph.ai/cli/stable/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/momorph/cli/refs/heads/main/scripts/install.sh | bash
 ```
 
 </details>
