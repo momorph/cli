@@ -26,6 +26,14 @@ type TestCaseContent struct {
 	TestCases  []TestCase `json:"test_cases"`
 }
 
+// Design item status constants
+const (
+	DesignItemStatusDeleted   = "deleted"
+	DesignItemStatusNone      = "none"
+	DesignItemStatusDraft     = "draft"
+	DesignItemStatusCompleted = "completed"
+)
+
 // Spec represents a single spec item from CSV
 type Spec struct {
 	No             string `json:"no"`
@@ -33,6 +41,7 @@ type Spec struct {
 	Name           string `json:"name"`
 	NameTrans      string `json:"nameTrans,omitempty"`
 	NodeLinkID     string `json:"node_link_id,omitempty"`
+	SectionLinkID  string `json:"section_link_id,omitempty"`
 	Type           string `json:"type,omitempty"`
 	OtherType      string `json:"otherType,omitempty"`
 	ButtonType     string `json:"buttonType,omitempty"`
@@ -44,12 +53,24 @@ type Spec struct {
 	DefaultValue   string `json:"defaultValue,omitempty"`
 	ValidationNote string `json:"validationNote,omitempty"`
 	Action         string `json:"action,omitempty"`
+	LinkedFrameID  string `json:"linkedFrameId,omitempty"`
 	NavigationNote string `json:"navigationNote,omitempty"`
 	TableName      string `json:"tableName,omitempty"`
 	ColumnName     string `json:"columnName,omitempty"`
 	DatabaseNote   string `json:"databaseNote,omitempty"`
 	Description    string `json:"description,omitempty"`
 	IsReviewed     *bool  `json:"is_reviewed,omitempty"`
+}
+
+// ValidatedSpec represents a spec with validation results
+type ValidatedSpec struct {
+	Spec
+	Status   string   // determined status: none, draft, completed
+	IsValid  bool     // whether spec passed validation
+	Errors   []string // validation error messages
+	Changed  bool     // whether spec differs from existing
+	IsNew    bool     // whether this is a new item (not in DB)
+	Existing *Spec    // reference to existing spec if any
 }
 
 // SpecPayload represents the transformed payload for GraphQL mutation

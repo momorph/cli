@@ -223,6 +223,7 @@ func parseSpecRow(row []string, colIndex map[string]int, lineNum int) (*Spec, er
 		DefaultValue:   getValue("defaultValue"),
 		ValidationNote: getValue("validationNote"),
 		Action:         getValue("userAction"),
+		LinkedFrameID:  getValue("linkedFrameId"),
 		NavigationNote: getValue("transitionNote"),
 		TableName:      getValue("databaseTable"),
 		ColumnName:     getValue("databaseColumn"),
@@ -232,50 +233,95 @@ func parseSpecRow(row []string, colIndex map[string]int, lineNum int) (*Spec, er
 }
 
 // TransformSpecToPayload transforms a Spec to SpecPayload for GraphQL mutation
-func TransformSpecToPayload(spec Spec, frameID, fileID int) *SpecPayload {
-	// Build nested specs structure
+// Uses type-based conditionals matching SDK's prepareSpecContentPayload
+func TransformSpecToPayload(spec Spec, frameID, fileID int, sectionLinkID, status string) *SpecPayload {
+	itemType := spec.Type
+
+	// Helper functions for conditional values
+	conditionalString := func(condition bool, value string) string {
+		if condition {
+			return value
+		}
+		return ""
+	}
+
+	conditionalInt := func(condition bool, value *int) *int {
+		if condition {
+			return value
+		}
+		return nil
+	}
+
+	conditionalBool := func(condition bool, value *bool) *bool {
+		if condition {
+			return value
+		}
+		return nil
+	}
+
+	// Build nested specs structure with type-based conditionals
 	specs := &SpecDetails{
 		Item: &ItemSpec{
 			Name:      spec.Name,
 			NameTrans: spec.NameTrans,
+			// Only set buttonType if type is "button"
+			ButtonType: conditionalString(itemType == "button", spec.ButtonType),
+			// Only set otherType if type is "others"
+			OtherType: conditionalString(itemType == "others", spec.OtherType),
 		},
 		Navigation: &NavigationSpec{
 			Action: spec.Action,
-			Note:   spec.NavigationNote,
+			// Only set linkedFrameId if action is present
+			LinkedFrameID: conditionalString(spec.Action != "", spec.LinkedFrameID),
+			Note:          spec.NavigationNote,
 		},
 		Validation: &ValidationSpec{
-			DataType:     spec.DataType,
-			Required:     spec.Required,
-			Format:       spec.Format,
-			MinLength:    spec.MinLength,
-			MaxLength:    spec.MaxLength,
+			// Only set dataType for specific types
+			DataType: conditionalString(
+				contains(TypesRequiringDataType, itemType),
+				spec.DataType,
+			),
+			// Required is nil for button/label types
+			Required: conditionalBool(
+				!contains(TypesWithoutValidation, itemType),
+				spec.Required,
+			),
+			// Format excluded for button/label
+			Format: conditionalString(
+				!contains(TypesWithoutValidation, itemType),
+				spec.Format,
+			),
+			// MinLength/MaxLength only for specific types
+			MinLength: conditionalInt(
+				contains(TypesRequiringLength, itemType),
+				spec.MinLength,
+			),
+			MaxLength: conditionalInt(
+				contains(TypesRequiringLength, itemType),
+				spec.MaxLength,
+			),
 			DefaultValue: spec.DefaultValue,
 			Note:         spec.ValidationNote,
 		},
 		Database: &DatabaseSpec{
-			TableName:  spec.TableName,
-			ColumnName: spec.ColumnName,
+			// Excluded for button type
+			TableName:  conditionalString(itemType != "button", spec.TableName),
+			ColumnName: conditionalString(itemType != "button", spec.ColumnName),
 			Note:       spec.DatabaseNote,
 		},
 		Description: spec.Description,
 	}
 
-	// Set type-specific fields
-	if spec.Type == "button" {
-		specs.Item.ButtonType = spec.ButtonType
-	}
-	if spec.Type == "others" {
-		specs.Item.OtherType = spec.OtherType
-	}
-
 	return &SpecPayload{
-		Type:       spec.Type,
-		No:         spec.No,
-		Name:       spec.DesignItemName,
-		NodeLinkID: spec.NodeLinkID,
-		FrameID:    frameID,
-		FileID:     fileID,
-		IsReviewed: spec.IsReviewed,
-		Specs:      specs,
+		Type:          spec.Type,
+		No:            spec.No,
+		Name:          spec.DesignItemName,
+		Status:        status,
+		NodeLinkID:    spec.NodeLinkID,
+		SectionLinkID: sectionLinkID,
+		FrameID:       frameID,
+		FileID:        fileID,
+		IsReviewed:    spec.IsReviewed,
+		Specs:         specs,
 	}
 }

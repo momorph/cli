@@ -242,7 +242,7 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath,
 		}
 	}
 
-	// Check frame status
+	// Check frame status (matches SDK's inDesignFrame check)
 	if frame.Status == "design" {
 		return upload.UploadResult{
 			FilePath: filePath,
@@ -260,13 +260,20 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath,
 		}
 	}
 
+	if len(nodeLinkIds) == 0 {
+		return upload.UploadResult{
+			FilePath: filePath,
+			FileName: fileName,
+			Status:   upload.StatusFailed,
+			Message:  "No valid node link IDs provided",
+		}
+	}
+
 	// Get existing design items for comparison
 	var existingItems []graphql.DesignItem
-	if len(nodeLinkIds) > 0 {
-		existingItems, err = client.ListDesignItemsByNodeLinkIds(ctx, parsed.FileKey, parsed.FrameID, nodeLinkIds)
-		if err != nil {
-			logger.Debug("Failed to get existing design items: %v", err)
-		}
+	existingItems, err = client.ListDesignItemsByNodeLinkIds(ctx, parsed.FileKey, parsed.FrameID, nodeLinkIds)
+	if err != nil {
+		logger.Debug("Failed to get existing design items: %v", err)
 	}
 
 	// Build map of existing items by node_link_id
@@ -275,23 +282,179 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath,
 		existingMap[item.NodeLinkID] = item
 	}
 
+	// Validate specs and determine status
+	var validSpecs []upload.ValidatedSpec
+	var invalidSpecs []upload.ValidatedSpec
+
+	for _, spec := range specs {
+		existingItem, exists := existingMap[spec.NodeLinkID]
+
+		// Check if existing item is deleted
+		if exists && existingItem.Status == upload.DesignItemStatusDeleted {
+			invalidSpecs = append(invalidSpecs, upload.ValidatedSpec{
+				Spec:    spec,
+				IsValid: false,
+				Errors:  []string{"The item has been deleted in Figma. Please review or remove the corresponding row."},
+			})
+			continue
+		}
+
+		// Determine status and validate
+		status, validationErrors := upload.DetermineSpecStatus(&spec, "")
+
+		// Check for changes (skip unchanged items)
+		currentSpecMap := upload.MapSpecForComparison(&spec)
+		var previousSpecMap map[string]interface{}
+		if exists {
+			// Convert existing item's specs to Spec for comparison
+			existingSpec := convertDesignItemToSpec(existingItem)
+			previousSpecMap = upload.MapSpecForComparison(&existingSpec)
+		}
+
+		hasChanged := !upload.CompareSpecs(currentSpecMap, previousSpecMap)
+
+		// Skip unchanged items with same status
+		if !hasChanged && exists && existingItem.Status == status {
+			logger.Debug("Skipping unchanged spec: %s", spec.NodeLinkID)
+			continue
+		}
+
+		if len(validationErrors) > 0 {
+			invalidSpecs = append(invalidSpecs, upload.ValidatedSpec{
+				Spec:    spec,
+				Status:  status,
+				IsValid: false,
+				Errors:  validationErrors,
+				Changed: hasChanged,
+				IsNew:   !exists,
+			})
+		} else {
+			validSpecs = append(validSpecs, upload.ValidatedSpec{
+				Spec:    spec,
+				Status:  status,
+				IsValid: true,
+				Changed: hasChanged,
+				IsNew:   !exists,
+			})
+		}
+	}
+
+	// Validate linked frames (matches SDK's validateLinkedFrames)
+	var linkedFrameNodeLinkIds []struct {
+		nodeID        string
+		linkedFrameID string
+	}
+	for i := range validSpecs {
+		if validSpecs[i].LinkedFrameID != "" {
+			linkedFrameNodeLinkIds = append(linkedFrameNodeLinkIds, struct {
+				nodeID        string
+				linkedFrameID string
+			}{
+				nodeID:        validSpecs[i].NodeLinkID,
+				linkedFrameID: validSpecs[i].LinkedFrameID,
+			})
+		}
+	}
+
+	if len(linkedFrameNodeLinkIds) > 0 {
+		// Collect unique linked frame IDs
+		uniqueFrameIDs := make(map[string]bool)
+		for _, lf := range linkedFrameNodeLinkIds {
+			uniqueFrameIDs[lf.linkedFrameID] = true
+		}
+		var frameLinkIds []string
+		for id := range uniqueFrameIDs {
+			frameLinkIds = append(frameLinkIds, id)
+		}
+
+		// Query to validate linked frames exist
+		linkedFrames, err := client.ListFramesByFrameLinkIds(ctx, parsed.FileKey, frameLinkIds)
+		if err != nil {
+			logger.Debug("Failed to validate linked frames: %v", err)
+		} else {
+			// Build map of existing frames
+			frameMap := make(map[string]bool)
+			for _, f := range linkedFrames {
+				frameMap[f.FrameLinkID] = true
+			}
+
+			// Mark specs with invalid linked frames as invalid
+			for i := range validSpecs {
+				if validSpecs[i].LinkedFrameID != "" && validSpecs[i].IsValid {
+					if !frameMap[validSpecs[i].LinkedFrameID] {
+						validSpecs[i].IsValid = false
+						validSpecs[i].Errors = append(validSpecs[i].Errors,
+							fmt.Sprintf("Linked frame with ID \"%s\" not found", validSpecs[i].LinkedFrameID))
+						// Move to invalid specs
+						invalidSpecs = append(invalidSpecs, validSpecs[i])
+					}
+				}
+			}
+
+			// Filter out invalid specs from validSpecs
+			var filteredValidSpecs []upload.ValidatedSpec
+			for _, vs := range validSpecs {
+				if vs.IsValid {
+					filteredValidSpecs = append(filteredValidSpecs, vs)
+				}
+			}
+			validSpecs = filteredValidSpecs
+		}
+	}
+
+	// Log validation errors
+	if len(invalidSpecs) > 0 {
+		logger.Debug("Found %d invalid specs", len(invalidSpecs))
+		for _, inv := range invalidSpecs {
+			logger.Debug("  - %s: %v", inv.NodeLinkID, inv.Errors)
+		}
+	}
+
+	if len(validSpecs) == 0 {
+		if len(invalidSpecs) > 0 {
+			return upload.UploadResult{
+				FilePath: filePath,
+				FileName: fileName,
+				Status:   upload.StatusFailed,
+				Message:  fmt.Sprintf("No valid specs to update (%d invalid)", len(invalidSpecs)),
+			}
+		}
+		return upload.UploadResult{
+			FilePath: filePath,
+			FileName: fileName,
+			Status:   upload.StatusSkipped,
+			Message:  "No changes detected",
+		}
+	}
+
 	// Prepare items for upsert
 	var items []map[string]interface{}
-	for _, spec := range specs {
-		payload := upload.TransformSpecToPayload(spec, frame.ID, frame.FileID)
+	for _, validated := range validSpecs {
+		spec := validated.Spec
+
+		// Determine section_link_id: use existing or fallback to frame's link ID
+		sectionLinkID := spec.SectionLinkID
+		if sectionLinkID == "" {
+			if existing, ok := existingMap[spec.NodeLinkID]; ok && existing.SectionLinkID != "" {
+				sectionLinkID = existing.SectionLinkID
+			}
+		}
+		if sectionLinkID == "" {
+			sectionLinkID = frame.FrameLinkID
+		}
+
+		payload := upload.TransformSpecToPayload(spec, frame.ID, frame.FileID, sectionLinkID, validated.Status)
 
 		// Convert to map for GraphQL
-		// Note: section_link_id is required for the unique constraint
-		// design_items_section_link_id_node_link_id_file_id_key
 		item := map[string]interface{}{
 			"no":              payload.No,
 			"name":            payload.Name,
 			"type":            payload.Type,
 			"node_link_id":    payload.NodeLinkID,
-			"section_link_id": payload.SectionLinkID, // Required for upsert constraint
+			"section_link_id": payload.SectionLinkID,
 			"frame_id":        payload.FrameID,
 			"file_id":         payload.FileID,
-			"status":          "draft",
+			"status":          payload.Status,
 		}
 
 		if payload.Specs != nil {
@@ -320,18 +483,40 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath,
 	if actor != "" {
 		user, err := client.GetMorpheusUserByEmail(ctx, actor)
 		if err == nil && user != nil {
-			// Prepare revision entries
+			// Prepare revision entries for new AND changed items
 			var revs []map[string]interface{}
 			for _, item := range savedItems {
-				// Check if item was updated (existed before)
-				if _, existed := existingMap[item.NodeLinkID]; existed {
+				existingItem, existed := existingMap[item.NodeLinkID]
+
+				shouldCreateRevision := false
+				if !existed {
+					// New item - always create revision
+					shouldCreateRevision = true
+				} else {
+					// Existing item - check if specs changed
+					existingSpec := convertDesignItemToSpec(existingItem)
+					currentSpecMap := upload.MapSpecForComparison(&existingSpec)
+
+					// Find the validated spec to get current values
+					for _, vs := range validSpecs {
+						if vs.NodeLinkID == item.NodeLinkID {
+							newSpecMap := upload.MapSpecForComparison(&vs.Spec)
+							if !upload.CompareSpecs(newSpecMap, currentSpecMap) {
+								shouldCreateRevision = true
+							}
+							break
+						}
+					}
+				}
+
+				if shouldCreateRevision {
 					rev := map[string]interface{}{
 						"design_item_id": item.ID,
 						"status":         item.Status,
 						"specs":          item.Specs,
 						"type":           item.Type,
 						"change_type":    "user",
-						"name":           item.Name,
+						"name":           "",
 						"user_id":        user.ID,
 					}
 					revs = append(revs, rev)
@@ -351,12 +536,90 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath,
 		}
 	}
 
+	message := fmt.Sprintf("Uploaded %d specs", len(savedItems))
+	if len(invalidSpecs) > 0 {
+		message += fmt.Sprintf(" (%d invalid)", len(invalidSpecs))
+	}
+
 	return upload.UploadResult{
 		FilePath: filePath,
 		FileName: fileName,
 		Status:   upload.StatusSuccess,
-		Message:  fmt.Sprintf("Uploaded %d specs", len(savedItems)),
+		Message:  message,
 	}
+}
+
+// convertDesignItemToSpec converts a GraphQL DesignItem to a Spec for comparison
+func convertDesignItemToSpec(item graphql.DesignItem) upload.Spec {
+	spec := upload.Spec{
+		No:            item.No,
+		NodeLinkID:    item.NodeLinkID,
+		SectionLinkID: item.SectionLinkID,
+		Type:          item.Type,
+	}
+
+	// Parse specs JSON if available
+	if len(item.Specs) > 0 {
+		var specDetails struct {
+			Item *struct {
+				Name       string `json:"name"`
+				NameTrans  string `json:"nameTrans"`
+				ButtonType string `json:"buttonType"`
+				OtherType  string `json:"otherType"`
+			} `json:"item"`
+			Navigation *struct {
+				Action        string `json:"action"`
+				LinkedFrameID string `json:"linkedFrameId"`
+				Note          string `json:"note"`
+			} `json:"navigation"`
+			Validation *struct {
+				DataType     string `json:"dataType"`
+				Required     *bool  `json:"required"`
+				Format       string `json:"format"`
+				MinLength    *int   `json:"minLength"`
+				MaxLength    *int   `json:"maxLength"`
+				DefaultValue string `json:"defaultValue"`
+				Note         string `json:"note"`
+			} `json:"validation"`
+			Database *struct {
+				TableName  string `json:"tableName"`
+				ColumnName string `json:"columnName"`
+				Note       string `json:"note"`
+			} `json:"database"`
+			Description string `json:"description"`
+		}
+
+		if err := json.Unmarshal(item.Specs, &specDetails); err == nil {
+			if specDetails.Item != nil {
+				spec.Name = specDetails.Item.Name
+				spec.NameTrans = specDetails.Item.NameTrans
+				spec.ButtonType = specDetails.Item.ButtonType
+				spec.OtherType = specDetails.Item.OtherType
+			}
+			if specDetails.Navigation != nil {
+				spec.Action = specDetails.Navigation.Action
+				spec.LinkedFrameID = specDetails.Navigation.LinkedFrameID
+				spec.NavigationNote = specDetails.Navigation.Note
+			}
+			if specDetails.Validation != nil {
+				spec.DataType = specDetails.Validation.DataType
+				spec.Required = specDetails.Validation.Required
+				spec.Format = specDetails.Validation.Format
+				spec.MinLength = specDetails.Validation.MinLength
+				spec.MaxLength = specDetails.Validation.MaxLength
+				spec.DefaultValue = specDetails.Validation.DefaultValue
+				spec.ValidationNote = specDetails.Validation.Note
+			}
+			if specDetails.Database != nil {
+				spec.TableName = specDetails.Database.TableName
+				spec.ColumnName = specDetails.Database.ColumnName
+				spec.DatabaseNote = specDetails.Database.Note
+			}
+			spec.Description = specDetails.Description
+		}
+	}
+
+	return spec
 }
 
 // getActorEmail gets the authenticated user's email from MoMorph API

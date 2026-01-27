@@ -126,6 +126,24 @@ query GetMorpheusUserByEmail($email: String!) {
   }
 }
 `
+
+	// ListFramesByFrameLinkIds query - for validating linked frames
+	queryListFramesByFrameLinkIds = `
+query ListFramesByFrameLinkIds($fileKey: String!, $frameLinkIds: [String!]!) {
+  frames(
+    where: {
+      _and: [
+        {file: {file_key: {_eq: $fileKey}}},
+        {frame_link_id: {_in: $frameLinkIds}}
+      ]
+    }
+  ) {
+    id
+    frame_link_id
+    name
+  }
+}
+`
 )
 
 // GraphQL mutations
@@ -376,4 +394,29 @@ func (c *Client) InsertDesignItemRevs(ctx context.Context, revs []map[string]int
 	}
 
 	return result.InsertDesignItemsRevs.AffectedRows, nil
+}
+
+// FrameBasic represents basic frame info for linked frame validation
+type FrameBasic struct {
+	ID          int    `json:"id"`
+	FrameLinkID string `json:"frame_link_id"`
+	Name        string `json:"name"`
+}
+
+// ListFramesByFrameLinkIds fetches frames by their frame link IDs
+func (c *Client) ListFramesByFrameLinkIds(ctx context.Context, fileKey string, frameLinkIds []string) ([]FrameBasic, error) {
+	variables := map[string]interface{}{
+		"fileKey":      fileKey,
+		"frameLinkIds": frameLinkIds,
+	}
+
+	var result struct {
+		Frames []FrameBasic `json:"frames"`
+	}
+
+	if err := c.ExecuteWithResult(ctx, queryListFramesByFrameLinkIds, variables, &result); err != nil {
+		return nil, err
+	}
+
+	return result.Frames, nil
 }
