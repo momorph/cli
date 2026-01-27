@@ -58,6 +58,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "Enable debug logging")
 	rootCmd.PersistentFlags().BoolVarP(&quietMode, "quiet", "q", false, "Suppress non-error output")
 
+	// Disable default completion command (we have a custom one in completion.go)
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
 	// Initialize custom help formatting
 	InitHelp()
 }
