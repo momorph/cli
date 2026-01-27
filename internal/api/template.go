@@ -25,16 +25,20 @@ type APIErrorResponse struct {
 	Key     string `json:"key"`
 }
 
-// GetProjectTemplate retrieves template metadata for the specified AI tool
-func (c *Client) GetProjectTemplate(ctx context.Context, aiTool string) (*TemplateMetadata, error) {
+// GetProjectTemplate retrieves template metadata for the specified AI tool.
+// If tag is non-empty it is sent as the version parameter; otherwise the
+// version is auto-detected (stable for production builds, latest for dev).
+func (c *Client) GetProjectTemplate(ctx context.Context, aiTool string, tag string) (*TemplateMetadata, error) {
 	// Validate AI tool
 	validTools := map[string]bool{
-		"copilot": true,
-		"cursor":  true,
-		"claude":  true,
+		"copilot":  true,
+		"cursor":   true,
+		"claude":   true,
+		"windsurf": true,
+		"gemini":   true,
 	}
 	if !validTools[aiTool] {
-		return nil, fmt.Errorf("invalid AI tool: %s (must be one of: copilot, cursor, claude)", aiTool)
+		return nil, fmt.Errorf("invalid AI tool: %s (must be one of: copilot, cursor, claude, windsurf, gemini)", aiTool)
 	}
 
 	// Determine shell based on OS
@@ -45,10 +49,14 @@ func (c *Client) GetProjectTemplate(ctx context.Context, aiTool string) (*Templa
 	}
 
 	// Determine version parameter
-	// Use "stable" for production releases, "latest" for development builds
-	versionParam := "stable"
-	if version.Version == "" || version.Version == "dev" {
-		versionParam = "latest"
+	// Use caller-supplied tag when provided; otherwise default to "stable"
+	// for production releases and "latest" for development builds.
+	versionParam := tag
+	if versionParam == "" {
+		versionParam = "stable"
+		if version.Version == "" || version.Version == "dev" {
+			versionParam = "latest"
+		}
 	}
 
 	// Build path with query parameters for BFF endpoint
@@ -79,7 +87,10 @@ func (c *Client) GetProjectTemplate(ctx context.Context, aiTool string) (*Templa
 		if err := json.Unmarshal(bodyBytes, &apiError); err == nil && apiError.Message != "" {
 			// Return a more user-friendly error message
 			if apiError.Message == "Object not found" {
-				return nil, fmt.Errorf("template not available on server yet (version=%s, agent=%s, shell=%s)\nThe template file may not be uploaded to S3 yet.\nPlease contact the MoMorph team or try again later", versionParam, aiTool, shell)
+				if tag != "" {
+					return nil, fmt.Errorf("template version %q not found for agent=%s", tag, aiTool)
+				}
+				return nil, fmt.Errorf("template not available for agent=%s (version=%s)\nPlease try again later or contact the MoMorph team", aiTool, versionParam)
 			}
 			return nil, fmt.Errorf("API error (%d): %s (key: %s)", resp.StatusCode, apiError.Message, apiError.Key)
 		}

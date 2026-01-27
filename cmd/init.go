@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	aiTool string
+	aiTool      string
+	templateTag string
 	// ErrUserCancelled is returned when the user cancels an operation
 	ErrUserCancelled = errors.New("user cancelled")
 )
@@ -36,7 +37,8 @@ var initCmd = &cobra.Command{
 }
 
 func init() {
-	initCmd.Flags().StringVar(&aiTool, "ai", "", "AI tool to use (copilot, cursor, claude)")
+	initCmd.Flags().StringVar(&aiTool, "ai", "", "AI tool to use (copilot, cursor, claude, windsurf, gemini)")
+	initCmd.Flags().StringVar(&templateTag, "tag", "", "Template version tag (stable, latest, or specific version)")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -104,9 +106,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		"cursor":   true,
 		"claude":   true,
 		"windsurf": true,
+		"gemini":   true,
 	}
 	if !validTools[aiTool] {
-		return fmt.Errorf("invalid AI tool: %s (must be one of: copilot, cursor, claude, windsurf)", aiTool)
+		return fmt.Errorf("invalid AI tool: %s (must be one of: copilot, cursor, claude, windsurf, gemini)", aiTool)
 	}
 
 	fmt.Printf("🚀 Initializing MoMorph project with %s\n", aiTool)
@@ -120,7 +123,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Get template metadata
 	fmt.Println("📋 Fetching template...")
-	templateMeta, err := client.GetProjectTemplate(ctx, aiTool)
+	templateMeta, err := client.GetProjectTemplate(ctx, aiTool, templateTag)
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			return nil // User cancelled
