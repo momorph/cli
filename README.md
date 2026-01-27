@@ -24,6 +24,7 @@
   - [E2E Testing Commands](#e2e-testing-commands)
 - [🔧 MoMorph CLI Reference](#-momorph-cli-reference)
   - [Upload Commands](#upload-commands)
+  - [Shell Completion](#shell-completion)
 - [📄 License](#-license)
 
 ## 🤔 What is MoMorph CLI?
@@ -466,12 +467,12 @@ momorph upload testcases --dry-run .momorph/testcases/**/*.csv
 ```
 
 **Flags:**
-| Flag | Description |
-|------|-------------|
-| `-d, --dir` | Directory to search for CSV files |
-| `-r, --recursive` | Search directories recursively |
-| `--dry-run` | Show what would be uploaded without uploading |
-| `--continue-on-error` | Continue uploading if one file fails |
+| Flag                  | Description                                   |
+| --------------------- | --------------------------------------------- |
+| `-d, --dir`           | Directory to search for CSV files             |
+| `-r, --recursive`     | Search directories recursively                |
+| `--dry-run`           | Show what would be uploaded without uploading |
+| `--continue-on-error` | Continue uploading if one file fails          |
 
 </details>
 
@@ -501,12 +502,81 @@ momorph upload specs --dry-run .momorph/specs/**/*.csv
 ```
 
 **Flags:**
-| Flag | Description |
-|------|-------------|
-| `-d, --dir` | Directory to search for CSV files |
-| `-r, --recursive` | Search directories recursively |
-| `--dry-run` | Show what would be uploaded without uploading |
-| `--continue-on-error` | Continue uploading if one file fails |
+| Flag                  | Description                                   |
+| --------------------- | --------------------------------------------- |
+| `-d, --dir`           | Directory to search for CSV files             |
+| `-r, --recursive`     | Search directories recursively                |
+| `--dry-run`           | Show what would be uploaded without uploading |
+| `--continue-on-error` | Continue uploading if one file fails          |
+
+</details>
+
+
+### Shell Completion
+
+MoMorph CLI supports shell completion for bash, zsh, fish, and powershell.
+
+<details>
+<summary><strong>Bash</strong></summary>
+
+```bash
+# Load completions in current session
+source <(momorph completion bash)
+
+# Load completions permanently (Linux)
+momorph completion bash > /etc/bash_completion.d/momorph
+
+# Load completions permanently (macOS with Homebrew)
+momorph completion bash > $(brew --prefix)/etc/bash_completion.d/momorph
+```
+
+> **Note:** Requires the `bash-completion` package to be installed.
+
+</details>
+
+<details>
+<summary><strong>Zsh</strong></summary>
+
+```bash
+# Enable shell completion (if not already enabled)
+echo "autoload -U compinit; compinit" >> ~/.zshrc
+
+# Load completions in current session
+source <(momorph completion zsh)
+
+# Load completions permanently (Linux)
+momorph completion zsh > "${fpath[1]}/_momorph"
+
+# Load completions permanently (macOS with Homebrew)
+momorph completion zsh > $(brew --prefix)/share/zsh/site-functions/_momorph
+```
+
+</details>
+
+<details>
+<summary><strong>Fish</strong></summary>
+
+```fish
+# Load completions in current session
+momorph completion fish | source
+
+# Load completions permanently
+momorph completion fish > ~/.config/fish/completions/momorph.fish
+```
+
+</details>
+
+<details>
+<summary><strong>PowerShell</strong></summary>
+
+```powershell
+# Load completions in current session
+momorph completion powershell | Out-String | Invoke-Expression
+
+# Load completions permanently
+momorph completion powershell > momorph.ps1
+# Then add ". momorph.ps1" to your PowerShell profile
+```
 
 </details>
 
