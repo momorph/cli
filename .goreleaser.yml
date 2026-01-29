@@ -36,7 +36,8 @@ brews:
       name: homebrew-tap
     name: momorph-cli
     homepage: "https://github.com/momorph/cli"
-    description: "MoMorph CLI"
+    description: |-
+      MoMorph CLI is a command-line tool (CLI) used to initialize, manage, and operate MoMorph projects following an AI-Driven Development approach.
     directory: Formula
     license: "MIT"
     install: |
@@ -59,9 +60,8 @@ chocolateys:
     bug_tracker_url: https://github.com/momorph/cli/issues
     tags: "cli momorph ai ai-driven-development"
     summary: MoMorph CLI - AI-powered development workflow tool
-    description: |
-      MoMorph CLI helps developers integrate AI coding assistants
-      into their projects with a single command.
+    description: |-
+      MoMorph CLI is a command-line tool (CLI) used to initialize, manage, and operate MoMorph projects following an AI-Driven Development approach.
     release_notes: "https://github.com/momorph/cli/releases/tag/v{{ .Version }}"
     api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
     source_repo: "https://push.chocolatey.org/"
