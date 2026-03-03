@@ -122,7 +122,7 @@ func (c *copilotConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpSe
 // cursorConfigUpdater handles Cursor-specific config updates
 type cursorConfigUpdater struct{}
 
-// ConfigureMCPServer updates Cursor's global mcp.json with MoMorph server
+// ConfigureMCPServer updates Cursor's global mcp.json with servers from project's .mcp.json
 // Config file: ~/.cursor/mcp.json
 func (c *cursorConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpServerEndpoint string) error {
 	// Cursor config is in user's home directory, not project directory
@@ -139,7 +139,7 @@ func (c *cursorConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpSer
 		return fmt.Errorf("failed to create .cursor directory: %w", err)
 	}
 
-	// Read existing config or create new one
+	// Read existing global config or create new one
 	var mcpConfig map[string]interface{}
 	if data, err := os.ReadFile(mcpFilePath); err == nil {
 		if err := json.Unmarshal(data, &mcpConfig); err != nil {
@@ -151,18 +151,32 @@ func (c *cursorConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpSer
 		mcpConfig = make(map[string]interface{})
 	}
 
-	// Get or create mcpServers
-	var servers map[string]interface{}
+	// Get or create mcpServers in global config
+	var globalServers map[string]interface{}
 	if serversInterface, exists := mcpConfig["mcpServers"]; exists {
-		servers, _ = serversInterface.(map[string]interface{})
+		globalServers, _ = serversInterface.(map[string]interface{})
 	}
-	if servers == nil {
-		servers = make(map[string]interface{})
-		mcpConfig["mcpServers"] = servers
+	if globalServers == nil {
+		globalServers = make(map[string]interface{})
+		mcpConfig["mcpServers"] = globalServers
 	}
 
-	// Add/update momorph server configuration
-	servers["momorph"] = map[string]interface{}{
+	// Read project's .mcp.json and merge servers
+	projectMCPPath := filepath.Join(projectDir, ".mcp.json")
+	if projectServers, err := readMCPServers(projectMCPPath); err == nil {
+		for name, server := range projectServers {
+			// Skip if server already exists in global config (don't overwrite user's config)
+			if _, exists := globalServers[name]; !exists {
+				globalServers[name] = server
+				logger.Debug("Added server '%s' to Cursor config", name)
+			}
+		}
+	} else {
+		logger.Debug("Could not read project .mcp.json for Cursor: %v", err)
+	}
+
+	// Always update momorph server with current token and endpoint
+	globalServers["momorph"] = map[string]interface{}{
 		"url": mcpServerEndpoint,
 		"headers": map[string]string{
 			"x-github-token": githubToken,
@@ -186,7 +200,7 @@ func (c *cursorConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpSer
 // windsurfConfigUpdater handles Windsurf-specific config updates
 type windsurfConfigUpdater struct{}
 
-// ConfigureMCPServer updates Windsurf's global mcp_config.json with MoMorph server
+// ConfigureMCPServer updates Windsurf's global mcp_config.json with servers from project's .mcp.json
 // Config file: ~/.codeium/windsurf/mcp_config.json
 func (w *windsurfConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpServerEndpoint string) error {
 	// Windsurf config is in user's home directory
@@ -203,7 +217,7 @@ func (w *windsurfConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpS
 		return fmt.Errorf("failed to create windsurf config directory: %w", err)
 	}
 
-	// Read existing config or create new one
+	// Read existing global config or create new one
 	var mcpConfig map[string]interface{}
 	if data, err := os.ReadFile(mcpFilePath); err == nil {
 		if err := json.Unmarshal(data, &mcpConfig); err != nil {
@@ -214,19 +228,38 @@ func (w *windsurfConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpS
 		mcpConfig = make(map[string]interface{})
 	}
 
-	// Get or create mcpServers
-	var servers map[string]interface{}
+	// Get or create mcpServers in global config
+	var globalServers map[string]interface{}
 	if serversInterface, exists := mcpConfig["mcpServers"]; exists {
-		servers, _ = serversInterface.(map[string]interface{})
+		globalServers, _ = serversInterface.(map[string]interface{})
 	}
-	if servers == nil {
-		servers = make(map[string]interface{})
-		mcpConfig["mcpServers"] = servers
+	if globalServers == nil {
+		globalServers = make(map[string]interface{})
+		mcpConfig["mcpServers"] = globalServers
 	}
 
-	// Add/update momorph server configuration
+	// Read project's .mcp.json and merge servers (with key transformation)
+	projectMCPPath := filepath.Join(projectDir, ".mcp.json")
+	if projectServers, err := readMCPServers(projectMCPPath); err == nil {
+		for name, server := range projectServers {
+			// Skip if server already exists in global config (don't overwrite user's config)
+			if _, exists := globalServers[name]; !exists {
+				// Transform server config for Windsurf (url -> serverUrl)
+				if serverMap, ok := server.(map[string]interface{}); ok {
+					globalServers[name] = transformServerForWindsurf(serverMap)
+				} else {
+					globalServers[name] = server
+				}
+				logger.Debug("Added server '%s' to Windsurf config", name)
+			}
+		}
+	} else {
+		logger.Debug("Could not read project .mcp.json for Windsurf: %v", err)
+	}
+
+	// Always update momorph server with current token and endpoint
 	// Windsurf uses "serverUrl" instead of "url"
-	servers["momorph"] = map[string]interface{}{
+	globalServers["momorph"] = map[string]interface{}{
 		"serverUrl": mcpServerEndpoint,
 		"headers": map[string]string{
 			"x-github-token": githubToken,
@@ -245,6 +278,44 @@ func (w *windsurfConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpS
 
 	logger.Info("Updated MoMorph config in Windsurf's mcp_config.json at %s", mcpFilePath)
 	return nil
+}
+
+// readMCPServers reads the mcpServers from a .mcp.json file
+func readMCPServers(mcpFilePath string) (map[string]interface{}, error) {
+	data, err := os.ReadFile(mcpFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var mcpConfig map[string]interface{}
+	if err := json.Unmarshal(data, &mcpConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	serversInterface, exists := mcpConfig["mcpServers"]
+	if !exists {
+		return nil, fmt.Errorf("no mcpServers field found")
+	}
+
+	servers, ok := serversInterface.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("mcpServers is not a valid object")
+	}
+
+	return servers, nil
+}
+
+// transformServerForWindsurf converts server config for Windsurf (url -> serverUrl)
+func transformServerForWindsurf(server map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range server {
+		if k == "url" {
+			result["serverUrl"] = v
+		} else {
+			result[k] = v
+		}
+	}
+	return result
 }
 
 // GetConfigUpdater returns the appropriate config updater for the given AI tool

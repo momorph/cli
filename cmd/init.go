@@ -11,6 +11,7 @@ import (
 
 	"github.com/momorph/cli/internal/api"
 	"github.com/momorph/cli/internal/auth"
+	"github.com/momorph/cli/internal/beads"
 	"github.com/momorph/cli/internal/config"
 	"github.com/momorph/cli/internal/logger"
 	"github.com/momorph/cli/internal/template"
@@ -20,8 +21,9 @@ import (
 )
 
 var (
-	aiTool      string
-	templateTag string
+	aiTool       string
+	templateTag  string
+	installBeads bool
 	// ErrUserCancelled is returned when the user cancels an operation
 	ErrUserCancelled = errors.New("user cancelled")
 )
@@ -31,7 +33,8 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new MoMorph project from the latest template",
 	Example: `  momorph init my-project --ai=copilot
   momorph init . --ai=cursor
-  momorph init my-project`,
+  momorph init my-project --with-beads
+  momorph init my-project --ai=claude --tag=stable --with-beads`,
 	Args: cobra.ExactArgs(1),
 	RunE: runInit,
 }
@@ -39,6 +42,7 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVar(&aiTool, "ai", "", "AI tool to use (copilot, cursor, claude, windsurf, gemini)")
 	initCmd.Flags().StringVar(&templateTag, "tag", "", "Template version tag (stable, latest, or specific version)")
+	initCmd.Flags().BoolVar(&installBeads, "with-beads", false, "Install uv and beads-mcp for task management")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -191,6 +195,20 @@ func runInit(cmd *cobra.Command, args []string) error {
 			} else {
 				logger.Info("Successfully updated GitHub token in %s config", aiTool)
 			}
+		}
+	}
+
+	// Install beads-mcp (requires uv) - only if flag is set
+	if installBeads {
+		fmt.Println("🔮 Installing beads-mcp...")
+		beadsResult := beads.EnsureInstalled()
+		if beadsResult.Error != nil {
+			logger.Warn("beads-mcp installation failed: %v", beadsResult.Error)
+			fmt.Printf("  ⚠ %s\n", beadsResult.Message)
+		} else if beadsResult.Installed {
+			fmt.Printf("  ✓ %s\n", beadsResult.Message)
+		} else {
+			fmt.Printf("  ⚠ %s\n", beadsResult.Message)
 		}
 	}
 
