@@ -12,10 +12,11 @@ func PromptAITool() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("\n🤖 Select AI Tool:")
-	fmt.Println("  1. GitHub Copilot")
-	fmt.Println("  2. Cursor")
-	fmt.Println("  3. Claude Code")
-	fmt.Println("  4. Windsurf")
+	fmt.Println("  1. Claude Code")
+	fmt.Println("  2. GitHub Copilot")
+	fmt.Println("  3. Cursor")
+	fmt.Println("  4. Gemini")
+	fmt.Println("  5. Windsurf")
 	fmt.Print("\nEnter your choice (1-4): ")
 
 	input, err := reader.ReadString('\n')
@@ -27,12 +28,14 @@ func PromptAITool() (string, error) {
 
 	switch input {
 	case "1":
-		return "copilot", nil
-	case "2":
-		return "cursor", nil
-	case "3":
 		return "claude", nil
+	case "2":
+		return "copilot", nil
+	case "3":
+		return "cursor", nil
 	case "4":
+		return "gemini", nil
+	case "5":
 		return "windsurf", nil
 	default:
 		return "", fmt.Errorf("invalid choice: %s", input)
