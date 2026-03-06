@@ -24,7 +24,7 @@ type ProgressCallback func(downloaded, total int64)
 
 // DownloadAndReplace downloads a new binary and replaces the current one
 // Returns the path of the installed binary on success
-func DownloadAndReplace(ctx context.Context, asset *Asset, progress ProgressCallback) (string, error) {
+func DownloadAndReplace(ctx context.Context, release *Release, asset *Asset, progress ProgressCallback) (string, error) {
 	// Get the current executable path
 	execPath, err := os.Executable()
 	if err != nil {
@@ -59,6 +59,16 @@ func DownloadAndReplace(ctx context.Context, asset *Asset, progress ProgressCall
 		return "", fmt.Errorf("failed to download: %w", err)
 	}
 	archiveFile.Close()
+
+	// Verify checksum if checksums.txt is available in the release
+	if expectedChecksum, err := getExpectedChecksum(ctx, release, asset.Name); err == nil {
+		if err := VerifyChecksum(archivePath, expectedChecksum); err != nil {
+			return "", fmt.Errorf("checksum verification failed: %w", err)
+		}
+		logger.Debug("Checksum verified for %s", asset.Name)
+	} else {
+		logger.Warn("Could not verify checksum: %v", err)
+	}
 
 	// Extract binary from archive
 	var binaryPath string
@@ -283,6 +293,57 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 		pr.callback(pr.downloaded, pr.total)
 	}
 	return n, err
+}
+
+// getExpectedChecksum downloads checksums.txt from the release and extracts the expected checksum for the given asset
+func getExpectedChecksum(ctx context.Context, release *Release, assetName string) (string, error) {
+	// Find checksums.txt asset in the release
+	var checksumAsset *Asset
+	for i := range release.Assets {
+		if release.Assets[i].Name == "checksums.txt" {
+			checksumAsset = &release.Assets[i]
+			break
+		}
+	}
+	if checksumAsset == nil {
+		return "", fmt.Errorf("checksums.txt not found in release assets")
+	}
+
+	// Download checksums.txt
+	req, err := http.NewRequestWithContext(ctx, "GET", checksumAsset.BrowserDownloadURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	client := utils.NewHTTPClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to download checksums: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download checksums (status %d)", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read checksums: %w", err)
+	}
+
+	// Parse checksums.txt - format: "<checksum>  <filename>"
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) == 2 && parts[1] == assetName {
+			return parts[0], nil
+		}
+	}
+
+	return "", fmt.Errorf("checksum for %s not found in checksums.txt", assetName)
 }
 
 // VerifyChecksum verifies the SHA256 checksum of a file

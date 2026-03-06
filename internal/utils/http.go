@@ -394,6 +394,7 @@ func isSensitiveHeader(name string) bool {
 		"set-cookie",
 		"x-api-key",
 		"x-auth-token",
+		"x-github-token",
 	}
 
 	lower := strings.ToLower(name)

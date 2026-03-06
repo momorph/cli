@@ -102,7 +102,7 @@ func (c *claudeConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpSer
 	}
 
 	// Write back to file
-	if err := os.WriteFile(mcpFilePath, updatedData, 0644); err != nil {
+	if err := os.WriteFile(mcpFilePath, updatedData, 0600); err != nil {
 		return fmt.Errorf("failed to write .mcp.json: %w", err)
 	}
 
@@ -189,7 +189,7 @@ func (c *cursorConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpSer
 		return fmt.Errorf("failed to marshal Cursor mcp.json: %w", err)
 	}
 
-	if err := os.WriteFile(mcpFilePath, updatedData, 0644); err != nil {
+	if err := os.WriteFile(mcpFilePath, updatedData, 0600); err != nil {
 		return fmt.Errorf("failed to write Cursor mcp.json: %w", err)
 	}
 
@@ -272,7 +272,7 @@ func (w *windsurfConfigUpdater) ConfigureMCPServer(projectDir, githubToken, mcpS
 		return fmt.Errorf("failed to marshal Windsurf mcp_config.json: %w", err)
 	}
 
-	if err := os.WriteFile(mcpFilePath, updatedData, 0644); err != nil {
+	if err := os.WriteFile(mcpFilePath, updatedData, 0600); err != nil {
 		return fmt.Errorf("failed to write Windsurf mcp_config.json: %w", err)
 	}
 

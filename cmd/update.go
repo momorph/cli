@@ -99,7 +99,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n📥 Downloading %s...\n", asset.Name)
 	progressBar := ui.NewProgressBar(asset.Size)
 
-	installedPath, err := update.DownloadAndReplace(ctx, asset, func(downloaded, total int64) {
+	installedPath, err := update.DownloadAndReplace(ctx, release, asset, func(downloaded, total int64) {
 		progressBar.Update(downloaded)
 	})
 	progressBar.Finish()
