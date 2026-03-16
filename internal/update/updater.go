@@ -60,15 +60,15 @@ func DownloadAndReplace(ctx context.Context, release *Release, asset *Asset, pro
 	}
 	archiveFile.Close()
 
-	// Verify checksum if checksums.txt is available in the release
-	if expectedChecksum, err := getExpectedChecksum(ctx, release, asset.Name); err == nil {
-		if err := VerifyChecksum(archivePath, expectedChecksum); err != nil {
-			return "", fmt.Errorf("checksum verification failed: %w", err)
-		}
-		logger.Debug("Checksum verified for %s", asset.Name)
-	} else {
-		logger.Warn("Could not verify checksum: %v", err)
+	// Verify checksum against checksums.txt from the release
+	expectedChecksum, err := getExpectedChecksum(ctx, release, asset.Name)
+	if err != nil {
+		return "", fmt.Errorf("could not verify integrity, aborting update: %w", err)
 	}
+	if err := VerifyChecksum(archivePath, expectedChecksum); err != nil {
+		return "", fmt.Errorf("checksum verification failed: %w", err)
+	}
+	logger.Debug("Checksum verified for %s", asset.Name)
 
 	// Extract binary from archive
 	var binaryPath string

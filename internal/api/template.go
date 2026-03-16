@@ -28,7 +28,9 @@ type APIErrorResponse struct {
 // GetProjectTemplate retrieves template metadata for the specified AI tool.
 // If tag is non-empty it is sent as the version parameter; otherwise the
 // version is auto-detected (stable for production builds, latest for dev).
-func (c *Client) GetProjectTemplate(ctx context.Context, aiTool string, tag string) (*TemplateMetadata, error) {
+// If variant is non-empty (e.g. "beads"), the API returns the corresponding
+// artifact variant instead of the base template.
+func (c *Client) GetProjectTemplate(ctx context.Context, aiTool string, tag string, variant string) (*TemplateMetadata, error) {
 	// Validate AI tool
 	validTools := map[string]bool{
 		"copilot":  true,
@@ -63,6 +65,9 @@ func (c *Client) GetProjectTemplate(ctx context.Context, aiTool string, tag stri
 	// Format: /g/bff/api/project-template/presign?agent=copilot&shell=sh&version=stable
 	// version can be: stable (production release) or latest (including pre-releases)
 	path := fmt.Sprintf("/g/bff/api/project-template/presign?agent=%s&shell=%s&version=%s", aiTool, shell, versionParam)
+	if variant != "" {
+		path += fmt.Sprintf("&variant=%s", variant)
+	}
 
 	// Make request
 	resp, err := c.Get(ctx, path)

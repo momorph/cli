@@ -21,9 +21,10 @@ import (
 )
 
 var (
-	aiTool       string
-	templateTag  string
-	installBeads bool
+	aiTool           string
+	templateTag      string
+	templateVariant  string
+	installBeads     bool
 	// ErrUserCancelled is returned when the user cancels an operation
 	ErrUserCancelled = errors.New("user cancelled")
 )
@@ -33,8 +34,9 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new MoMorph project from the latest template",
 	Example: `  momorph init my-project --ai=copilot
   momorph init . --ai=cursor
-  momorph init my-project --with-beads
-  momorph init my-project --ai=claude --tag=stable --with-beads`,
+  momorph init my-project --variant=beads
+  momorph init my-project --ai=claude --tag=stable --variant=beads
+  momorph init my-project --ai=claude --with-beads`,
 	Args: cobra.ExactArgs(1),
 	RunE: runInit,
 }
@@ -42,6 +44,7 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVar(&aiTool, "ai", "", "AI tool to use (copilot, cursor, claude, windsurf, gemini)")
 	initCmd.Flags().StringVar(&templateTag, "tag", "", "Template version tag (stable, latest, or specific version)")
+	initCmd.Flags().StringVar(&templateVariant, "variant", "", "Template variant to download (e.g. beads)")
 	initCmd.Flags().BoolVar(&installBeads, "with-beads", false, "Install uv and beads-mcp for task management")
 	rootCmd.AddCommand(initCmd)
 }
@@ -127,7 +130,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Get template metadata
 	fmt.Println("📋 Fetching template...")
-	templateMeta, err := client.GetProjectTemplate(ctx, aiTool, templateTag)
+	// --variant flag takes priority; --with-beads implies variant=beads
+	variant := templateVariant
+	if variant == "" && installBeads {
+		variant = "beads"
+	}
+	templateMeta, err := client.GetProjectTemplate(ctx, aiTool, templateTag, variant)
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			return nil // User cancelled
@@ -198,8 +206,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Install beads-mcp (requires uv) - only if flag is set
-	if installBeads {
+	// Install beads-mcp (requires uv) - if --with-beads or --variant=beads
+	if installBeads || variant == "beads" {
 		fmt.Println("🔮 Installing beads-mcp...")
 		beadsResult := beads.EnsureInstalled()
 		if beadsResult.Error != nil {
