@@ -20,6 +20,9 @@ var (
 	tcUploadRecursive bool
 	tcUploadDryRun    bool
 	tcUploadContinue  bool
+	tcFileKey         string
+	tcFrameID         string
+	tcFrameName       string
 )
 
 // CSV columns are mapped to test case fields:
@@ -35,20 +38,20 @@ var uploadTestcasesCmd = &cobra.Command{
 	Short: "Upload test cases to MoMorph server",
 	Long: `Upload test case CSV files to MoMorph server.
 
-Files must follow the path pattern:
+By default, files must follow the path pattern:
   .momorph/testcases/{file_key}/{frame_id}-{frame_name}.csv
-`,
-	Example: `  # Upload a single file
-  momorph upload testcases .momorph/testcases/xxx/yyy.csv
 
-  # Upload multiple files
-  momorph upload testcases file1.csv file2.csv
+Alternatively, use --file-key (and optionally --frame-id, --frame-name) to
+upload CSV files from any location without following the path convention.
+`,
+	Example: `  # Upload using path convention
+  momorph upload testcases .momorph/testcases/xxx/9276:19907-TOP_Channel.csv
+
+  # Upload from any location with explicit metadata
+  momorph upload testcases ~/data/tc.csv --file-key=xxx --frame-id=9276:19907
 
   # Upload all testcases in a directory recursively
   momorph upload testcases --dir .momorph/testcases/ -r
-
-  # Upload using glob pattern
-  momorph upload testcases ".momorph/testcases/**/*.csv"
 
   # Dry run (show what would be uploaded)
   momorph upload testcases --dry-run .momorph/testcases/**/*.csv`,
@@ -60,6 +63,9 @@ func init() {
 	uploadTestcasesCmd.Flags().BoolVarP(&tcUploadRecursive, "recursive", "r", false, "Search directories recursively")
 	uploadTestcasesCmd.Flags().BoolVar(&tcUploadDryRun, "dry-run", false, "Show what would be uploaded without actually uploading")
 	uploadTestcasesCmd.Flags().BoolVar(&tcUploadContinue, "continue-on-error", false, "Continue uploading remaining files if one fails")
+	uploadTestcasesCmd.Flags().StringVar(&tcFileKey, "file-key", "", "Figma file key (required when CSV is not in .momorph/ path)")
+	uploadTestcasesCmd.Flags().StringVar(&tcFrameID, "frame-id", "", "Figma frame ID (optional, used with --file-key)")
+	uploadTestcasesCmd.Flags().StringVar(&tcFrameName, "frame-name", "", "Frame name (optional, used with --file-key)")
 	uploadCmd.AddCommand(uploadTestcasesCmd)
 }
 
@@ -85,21 +91,39 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Determine if using flags mode (--file-key provided)
+	useFlags := tcFileKey != ""
+
+	// Build parsed metadata from flags when in flags mode
+	var flagsParsed *upload.ParsedFilePath
+	if useFlags {
+		flagsParsed = &upload.ParsedFilePath{
+			Type:      "testcases",
+			FileKey:   tcFileKey,
+			FrameID:   tcFrameID,
+			FrameName: tcFrameName,
+		}
+	}
+
 	// Resolve files
-	files, err := upload.ResolveFiles(args, tcUploadDir, tcUploadRecursive, "testcases")
+	files, err := upload.ResolveFiles(args, tcUploadDir, tcUploadRecursive, "testcases", useFlags)
 	if err != nil {
 		return fmt.Errorf("failed to resolve files: %w", err)
 	}
 
 	if len(files) == 0 {
 		fmt.Println("No CSV files found to upload")
-		fmt.Println("\nMake sure files are in the correct path format:")
-		fmt.Println("  .momorph/testcases/{file_key}/{frame_id}-{frame_name}.csv")
+		if !useFlags {
+			fmt.Println("\nMake sure files are in the correct path format:")
+			fmt.Println("  .momorph/testcases/{file_key}/{frame_id}-{frame_name}.csv")
+			fmt.Println("\nOr use --file-key to upload from any location:")
+			fmt.Println("  momorph upload testcases myfile.csv --file-key=<figma_file_key>")
+		}
 		return nil
 	}
 
 	// Validate files
-	validFiles, skipped := upload.ValidateFiles(files, "testcases")
+	validFiles, skipped := upload.ValidateFiles(files, "testcases", useFlags)
 
 	// Print skipped files
 	for _, s := range skipped {
@@ -116,7 +140,12 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 	if tcUploadDryRun {
 		fmt.Printf("\n[DRY RUN] Would upload %d file(s):\n", len(validFiles))
 		for _, f := range validFiles {
-			parsed, _ := upload.ParseFilePath(f)
+			var parsed *upload.ParsedFilePath
+			if useFlags {
+				parsed = flagsParsed
+			} else {
+				parsed, _ = upload.ParseFilePath(f)
+			}
 			fmt.Printf("  - %s\n", filepath.Base(f))
 			fmt.Printf("    File Key: %s\n", parsed.FileKey)
 			fmt.Printf("    Frame ID: %s\n", parsed.FrameID)
@@ -134,7 +163,7 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 
 	// Upload files
 	fmt.Printf("\nUploading %d test case file(s)...\n", len(validFiles))
-	results := uploadTestcaseFiles(ctx, client, validFiles, tcUploadContinue)
+	results := uploadTestcaseFiles(ctx, client, validFiles, flagsParsed, tcUploadContinue)
 
 	// Combine with skipped files
 	allResults := append(skipped, results...)
@@ -145,7 +174,7 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []string, continueOnError bool) []upload.UploadResult {
+func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []string, flagsParsed *upload.ParsedFilePath, continueOnError bool) []upload.UploadResult {
 	var results []upload.UploadResult
 
 	for i, file := range files {
@@ -159,7 +188,7 @@ func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []st
 		fileName := filepath.Base(file)
 		fmt.Printf("  [%d/%d] %s ", i+1, len(files), fileName)
 
-		result := uploadSingleTestcaseFile(ctx, client, file)
+		result := uploadSingleTestcaseFile(ctx, client, file, flagsParsed)
 		results = append(results, result)
 
 		switch result.Status {
@@ -180,23 +209,31 @@ func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []st
 	return results
 }
 
-func uploadSingleTestcaseFile(ctx context.Context, client *graphql.Client, filePath string) upload.UploadResult {
+// uploadSingleTestcaseFile uploads a single testcase CSV file. When flagsParsed
+// is non-nil it is used as metadata instead of parsing from the file path.
+func uploadSingleTestcaseFile(ctx context.Context, client *graphql.Client, filePath string, flagsParsed *upload.ParsedFilePath) upload.UploadResult {
 	fileName := filepath.Base(filePath)
 
-	// Parse file path
-	parsed, err := upload.ParseFilePath(filePath)
-	if err != nil {
-		return upload.UploadResult{
-			FilePath: filePath,
-			FileName: fileName,
-			Status:   upload.StatusSkipped,
-			Error:    err,
-			Message:  "Invalid file path format",
+	// Resolve metadata: use flags or parse from path
+	var parsed *upload.ParsedFilePath
+	if flagsParsed != nil {
+		parsed = flagsParsed
+	} else {
+		var err error
+		parsed, err = upload.ParseFilePath(filePath)
+		if err != nil {
+			return upload.UploadResult{
+				FilePath: filePath,
+				FileName: fileName,
+				Status:   upload.StatusSkipped,
+				Error:    err,
+				Message:  "Invalid file path format",
+			}
 		}
 	}
 
-	// Parse CSV file
-	content, err := upload.ParseTestcasesCSV(filePath)
+	// Parse CSV file — pass FrameName as screen name (empty when using flags without --frame-name)
+	content, err := upload.ParseTestcasesCSV(filePath, parsed.FrameName)
 	if err != nil {
 		return upload.UploadResult{
 			FilePath: filePath,
@@ -217,6 +254,16 @@ func uploadSingleTestcaseFile(ctx context.Context, client *graphql.Client, fileP
 	}
 
 	logger.Debug("Parsed %d test cases from %s", len(content.TestCases), fileName)
+
+	// When no frame ID is provided, we cannot proceed (backend requires frame context)
+	if parsed.FrameID == "" {
+		return upload.UploadResult{
+			FilePath: filePath,
+			FileName: fileName,
+			Status:   upload.StatusFailed,
+			Message:  "frame-id is required for uploading test cases (use --frame-id flag)",
+		}
+	}
 
 	// Check if test cases already exist for this frame
 	existingTestCases, err := client.GetFrameTestCases(ctx, parsed.FileKey, parsed.FrameID)

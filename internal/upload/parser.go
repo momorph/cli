@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -43,8 +44,10 @@ func ParseFilePath(fullFilePath string) (*ParsedFilePath, error) {
 	}, nil
 }
 
-// ParseTestcasesCSV parses a test cases CSV file and returns TestCaseContent
-func ParseTestcasesCSV(filePath string) (*TestCaseContent, error) {
+// ParseTestcasesCSV parses a test cases CSV file and returns TestCaseContent.
+// If screenName is non-empty it is used directly; otherwise the name is
+// extracted from the file path convention.
+func ParseTestcasesCSV(filePath string, screenName string) (*TestCaseContent, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
@@ -80,14 +83,19 @@ func ParseTestcasesCSV(filePath string) (*TestCaseContent, error) {
 		testCases = append(testCases, *tc)
 	}
 
-	// Extract screen name from file path
-	parsed, err := ParseFilePath(filePath)
-	if err != nil {
-		return nil, err
+	// Resolve screen name: use provided value, extract from path convention, or fall back to filename
+	if screenName == "" {
+		parsed, err := ParseFilePath(filePath)
+		if err == nil {
+			screenName = parsed.FrameName
+		} else {
+			// Fall back to filename without extension
+			screenName = strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+		}
 	}
 
 	return &TestCaseContent{
-		ScreenName: parsed.FrameName,
+		ScreenName: screenName,
 		TestCases:  testCases,
 	}, nil
 }

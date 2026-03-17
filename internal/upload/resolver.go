@@ -7,9 +7,10 @@ import (
 	"strings"
 )
 
-// ResolveFiles resolves file paths from arguments, directory, and recursive options
-// Returns a list of CSV file paths that match the expected pattern
-func ResolveFiles(args []string, dir string, recursive bool, uploadType string) ([]string, error) {
+// ResolveFiles resolves file paths from arguments, directory, and recursive options.
+// Returns a list of CSV file paths. When skipPathValidation is true the files
+// are not required to follow the .momorph/{type}/{key}/{id}-{name}.csv pattern.
+func ResolveFiles(args []string, dir string, recursive bool, uploadType string, skipPathValidation bool) ([]string, error) {
 	var files []string
 	seen := make(map[string]bool)
 
@@ -40,11 +41,13 @@ func ResolveFiles(args []string, dir string, recursive bool, uploadType string) 
 			return nil
 		}
 
-		// Validate file path matches expected pattern
-		_, err = ParseFilePath(absPath)
-		if err != nil {
-			// File doesn't match pattern, skip with warning
-			return nil
+		// Validate file path matches expected pattern (unless skipped)
+		if !skipPathValidation {
+			_, err = ParseFilePath(absPath)
+			if err != nil {
+				// File doesn't match pattern, skip with warning
+				return nil
+			}
 		}
 
 		seen[absPath] = true
@@ -71,7 +74,7 @@ func ResolveFiles(args []string, dir string, recursive bool, uploadType string) 
 			info, err := os.Stat(arg)
 			if err == nil && info.IsDir() {
 				// Scan directory
-				dirFiles, err := scanDirectory(arg, recursive, uploadType)
+				dirFiles, err := scanDirectory(arg, recursive, uploadType, skipPathValidation)
 				if err != nil {
 					return nil, err
 				}
@@ -91,7 +94,7 @@ func ResolveFiles(args []string, dir string, recursive bool, uploadType string) 
 
 	// Process directory option
 	if dir != "" {
-		dirFiles, err := scanDirectory(dir, recursive, uploadType)
+		dirFiles, err := scanDirectory(dir, recursive, uploadType, skipPathValidation)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +115,7 @@ func ResolveFiles(args []string, dir string, recursive bool, uploadType string) 
 
 		momorphDir := filepath.Join(cwd, ".momorph", uploadType)
 		if info, err := os.Stat(momorphDir); err == nil && info.IsDir() {
-			dirFiles, err := scanDirectory(momorphDir, true, uploadType)
+			dirFiles, err := scanDirectory(momorphDir, true, uploadType, skipPathValidation)
 			if err != nil {
 				return nil, err
 			}
@@ -128,7 +131,7 @@ func ResolveFiles(args []string, dir string, recursive bool, uploadType string) 
 }
 
 // scanDirectory scans a directory for CSV files
-func scanDirectory(dir string, recursive bool, uploadType string) ([]string, error) {
+func scanDirectory(dir string, recursive bool, uploadType string, skipPathValidation bool) ([]string, error) {
 	var files []string
 
 	walkFn := func(path string, info os.FileInfo, err error) error {
@@ -149,15 +152,17 @@ func scanDirectory(dir string, recursive bool, uploadType string) ([]string, err
 			return nil
 		}
 
-		// Validate file path matches expected pattern
-		parsed, err := ParseFilePath(path)
-		if err != nil {
-			return nil // Skip files that don't match pattern
-		}
+		if !skipPathValidation {
+			// Validate file path matches expected pattern
+			parsed, err := ParseFilePath(path)
+			if err != nil {
+				return nil // Skip files that don't match pattern
+			}
 
-		// If uploadType is specified, only include matching files
-		if uploadType != "" && parsed.Type != uploadType {
-			return nil
+			// If uploadType is specified, only include matching files
+			if uploadType != "" && parsed.Type != uploadType {
+				return nil
+			}
 		}
 
 		files = append(files, path)
@@ -171,8 +176,9 @@ func scanDirectory(dir string, recursive bool, uploadType string) ([]string, err
 	return files, nil
 }
 
-// ValidateFiles validates that all files exist and match expected pattern
-func ValidateFiles(files []string, uploadType string) ([]string, []UploadResult) {
+// ValidateFiles validates that all files exist and match expected pattern.
+// When skipPathValidation is true the .momorph path pattern check is skipped.
+func ValidateFiles(files []string, uploadType string, skipPathValidation bool) ([]string, []UploadResult) {
 	var validFiles []string
 	var skipped []UploadResult
 
@@ -212,28 +218,30 @@ func ValidateFiles(files []string, uploadType string) ([]string, []UploadResult)
 			continue
 		}
 
-		// Validate path pattern
-		parsed, err := ParseFilePath(file)
-		if err != nil {
-			skipped = append(skipped, UploadResult{
-				FilePath: file,
-				FileName: filepath.Base(file),
-				Status:   StatusSkipped,
-				Error:    err,
-				Message:  "Invalid file path format",
-			})
-			continue
-		}
+		// Validate path pattern (unless skipped)
+		if !skipPathValidation {
+			parsed, err := ParseFilePath(file)
+			if err != nil {
+				skipped = append(skipped, UploadResult{
+					FilePath: file,
+					FileName: filepath.Base(file),
+					Status:   StatusSkipped,
+					Error:    err,
+					Message:  "Invalid file path format",
+				})
+				continue
+			}
 
-		// Check upload type matches if specified
-		if uploadType != "" && parsed.Type != uploadType {
-			skipped = append(skipped, UploadResult{
-				FilePath: file,
-				FileName: filepath.Base(file),
-				Status:   StatusSkipped,
-				Message:  fmt.Sprintf("File type mismatch: expected %s, got %s", uploadType, parsed.Type),
-			})
-			continue
+			// Check upload type matches if specified
+			if uploadType != "" && parsed.Type != uploadType {
+				skipped = append(skipped, UploadResult{
+					FilePath: file,
+					FileName: filepath.Base(file),
+					Status:   StatusSkipped,
+					Message:  fmt.Sprintf("File type mismatch: expected %s, got %s", uploadType, parsed.Type),
+				})
+				continue
+			}
 		}
 
 		// Check file is not empty
