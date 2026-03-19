@@ -141,6 +141,13 @@ type ParsedFilePath struct {
 	FrameName string // Frame name
 }
 
+// MoMorphFrameMeta contains frame metadata resolved from a MoMorph integer frame ID.
+// Used when uploading specs without Figma design information.
+type MoMorphFrameMeta struct {
+	FrameID   int    // MoMorph integer frame ID
+	FrameName string // Frame name (for display only, optional)
+}
+
 // UploadStatus represents the status of a file upload
 type UploadStatus string
 
