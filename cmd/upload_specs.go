@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/momorph/cli/internal/auth"
@@ -21,7 +22,6 @@ var (
 	specUploadRecursive bool
 	specUploadDryRun    bool
 	specUploadContinue  bool
-	specFileKey         string
 	specFrameID         string
 	specFrameName       string
 )
@@ -41,26 +41,26 @@ var uploadSpecsCmd = &cobra.Command{
 	Short: "Upload specs to MoMorph server",
 	Long: `Upload spec CSV files to MoMorph server.
 
-By default, files must follow the path pattern:
-  .momorph/specs/{file_key}/{frame_id}-{frame_name}.csv
+CSV files can be placed anywhere. The MoMorph frame ID must be supplied via
+--frame-id or encoded in the filename as:
+  {momorph_frame_id}-{frame_name}.csv  (e.g. 42-TopChannel.csv)
 
-Alternatively, use --file-key (and optionally --frame-id, --frame-name) to
-upload CSV files from any location without following the path convention.
+No Figma file key or Figma frame ID is required.
 `,
-	Example: `  # Upload using path convention
-  momorph upload specs .momorph/specs/xxx/9276:19907-TOP_Channel.csv
+	Example: `  # Upload using filename convention (frame ID embedded in name)
+  momorph upload specs 42-TopChannel.csv
 
-  # Upload from any location with explicit metadata
-  momorph upload specs ~/data/my-specs.csv --file-key=xxx --frame-id=9276:19907
+  # Upload from any location with explicit frame ID
+  momorph upload specs ~/data/my-specs.csv --frame-id=42
 
-  # Upload without frame (unlinked specs)
-  momorph upload specs ./specs.csv --file-key=xxx
+  # Upload multiple files sharing the same frame
+  momorph upload specs spec1.csv spec2.csv --frame-id=42
 
-  # Upload all specs in a directory recursively
-  momorph upload specs --dir .momorph/specs/ -r
+  # Upload all CSV files in a directory recursively
+  momorph upload specs --dir ./specs/ -r
 
   # Dry run (show what would be uploaded)
-  momorph upload specs --dry-run .momorph/specs/**/*.csv`,
+  momorph upload specs --dry-run ./specs/*.csv`,
 	RunE: runUploadSpecs,
 }
 
@@ -69,9 +69,8 @@ func init() {
 	uploadSpecsCmd.Flags().BoolVarP(&specUploadRecursive, "recursive", "r", false, "Search directories recursively")
 	uploadSpecsCmd.Flags().BoolVar(&specUploadDryRun, "dry-run", false, "Show what would be uploaded without actually uploading")
 	uploadSpecsCmd.Flags().BoolVar(&specUploadContinue, "continue-on-error", false, "Continue uploading remaining files if one fails")
-	uploadSpecsCmd.Flags().StringVar(&specFileKey, "file-key", "", "Figma file key (required when CSV is not in .momorph/ path)")
-	uploadSpecsCmd.Flags().StringVar(&specFrameID, "frame-id", "", "Figma frame ID (optional, used with --file-key)")
-	uploadSpecsCmd.Flags().StringVar(&specFrameName, "frame-name", "", "Frame name (optional, used with --file-key)")
+	uploadSpecsCmd.Flags().StringVar(&specFrameID, "frame-id", "", "MoMorph frame ID (integer). Required when frame ID is not encoded in the filename.")
+	uploadSpecsCmd.Flags().StringVar(&specFrameName, "frame-name", "", "Frame name for display (optional, used with --frame-id)")
 	uploadCmd.AddCommand(uploadSpecsCmd)
 }
 
@@ -104,39 +103,34 @@ func runUploadSpecs(cmd *cobra.Command, args []string) error {
 		fmt.Println("⚠ Could not get user email for revision tracking")
 	}
 
-	// Determine if using flags mode (--file-key provided)
-	useFlags := specFileKey != ""
-
-	// Build parsed metadata from flags when in flags mode
-	var flagsParsed *upload.ParsedFilePath
-	if useFlags {
-		flagsParsed = &upload.ParsedFilePath{
-			Type:      "specs",
-			FileKey:   specFileKey,
-			FrameID:   specFrameID,
+	// Parse --frame-id flag when provided
+	var flagsMeta *upload.MoMorphFrameMeta
+	if specFrameID != "" {
+		parsedID, err := strconv.Atoi(specFrameID)
+		if err != nil || parsedID <= 0 {
+			return fmt.Errorf("--frame-id must be a positive MoMorph integer frame ID, got: %s", specFrameID)
+		}
+		flagsMeta = &upload.MoMorphFrameMeta{
+			FrameID:   parsedID,
 			FrameName: specFrameName,
 		}
 	}
 
-	// Resolve files
-	files, err := upload.ResolveFiles(args, specUploadDir, specUploadRecursive, "specs", useFlags)
+	// Resolve files - path convention is no longer required
+	files, err := upload.ResolveFiles(args, specUploadDir, specUploadRecursive, "specs", true)
 	if err != nil {
 		return fmt.Errorf("failed to resolve files: %w", err)
 	}
 
 	if len(files) == 0 {
 		fmt.Println("No CSV files found to upload")
-		if !useFlags {
-			fmt.Println("\nMake sure files are in the correct path format:")
-			fmt.Println("  .momorph/specs/{file_key}/{frame_id}-{frame_name}.csv")
-			fmt.Println("\nOr use --file-key to upload from any location:")
-			fmt.Println("  momorph upload specs myfile.csv --file-key=<figma_file_key>")
-		}
+		fmt.Println("\nProvide CSV file paths directly or use --dir to scan a directory.")
+		fmt.Println("The frame ID must be in the filename (e.g. 42-MyScreen.csv) or supplied via --frame-id.")
 		return nil
 	}
 
 	// Validate files
-	validFiles, skipped := upload.ValidateFiles(files, "specs", useFlags)
+	validFiles, skipped := upload.ValidateFiles(files, "specs", true)
 
 	// Print skipped files
 	for _, s := range skipped {
@@ -153,17 +147,19 @@ func runUploadSpecs(cmd *cobra.Command, args []string) error {
 	if specUploadDryRun {
 		fmt.Printf("\n[DRY RUN] Would upload %d file(s):\n", len(validFiles))
 		for _, f := range validFiles {
-			var parsed *upload.ParsedFilePath
-			if useFlags {
-				parsed = flagsParsed
+			var meta upload.MoMorphFrameMeta
+			if flagsMeta != nil {
+				meta = *flagsMeta
 			} else {
-				parsed, _ = upload.ParseFilePath(f)
+				id, name, err := upload.ParseFileNameForFrameID(f)
+				if err == nil {
+					meta = upload.MoMorphFrameMeta{FrameID: id, FrameName: name}
+				}
 			}
 			specs, _ := upload.ParseSpecsCSV(f)
 			fmt.Printf("  - %s\n", filepath.Base(f))
-			fmt.Printf("    File Key: %s\n", parsed.FileKey)
-			fmt.Printf("    Frame ID: %s\n", parsed.FrameID)
-			fmt.Printf("    Frame Name: %s\n", parsed.FrameName)
+			fmt.Printf("    Frame ID:   %d\n", meta.FrameID)
+			fmt.Printf("    Frame Name: %s\n", meta.FrameName)
 			fmt.Printf("    Specs count: %d\n", len(specs))
 		}
 		return nil
@@ -178,7 +174,7 @@ func runUploadSpecs(cmd *cobra.Command, args []string) error {
 
 	// Upload files
 	fmt.Printf("\nUploading %d spec file(s)...\n", len(validFiles))
-	results := uploadSpecFiles(ctx, client, validFiles, flagsParsed, actor, specUploadContinue)
+	results := uploadSpecFiles(ctx, client, validFiles, flagsMeta, actor, specUploadContinue)
 
 	// Combine with skipped files
 	allResults := append(skipped, results...)
@@ -189,7 +185,7 @@ func runUploadSpecs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func uploadSpecFiles(ctx context.Context, client *graphql.Client, files []string, flagsParsed *upload.ParsedFilePath, actor string, continueOnError bool) []upload.UploadResult {
+func uploadSpecFiles(ctx context.Context, client *graphql.Client, files []string, flagsMeta *upload.MoMorphFrameMeta, actor string, continueOnError bool) []upload.UploadResult {
 	var results []upload.UploadResult
 
 	for i, file := range files {
@@ -203,7 +199,7 @@ func uploadSpecFiles(ctx context.Context, client *graphql.Client, files []string
 		fileName := filepath.Base(file)
 		fmt.Printf("  [%d/%d] %s ", i+1, len(files), fileName)
 
-		result := uploadSingleSpecFile(ctx, client, file, flagsParsed, actor)
+		result := uploadSingleSpecFile(ctx, client, file, flagsMeta, actor)
 		results = append(results, result)
 
 		switch result.Status {
@@ -224,27 +220,27 @@ func uploadSpecFiles(ctx context.Context, client *graphql.Client, files []string
 	return results
 }
 
-// uploadSingleSpecFile uploads a single spec CSV file. When flagsParsed is
-// non-nil it is used as metadata instead of parsing from the file path.
-func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath string, flagsParsed *upload.ParsedFilePath, actor string) upload.UploadResult {
+// uploadSingleSpecFile uploads a single spec CSV file.
+// When flagsMeta is non-nil its frame ID overrides any filename-derived value.
+func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath string, flagsMeta *upload.MoMorphFrameMeta, actor string) upload.UploadResult {
 	fileName := filepath.Base(filePath)
 
-	// Resolve metadata: use flags or parse from path
-	var parsed *upload.ParsedFilePath
-	if flagsParsed != nil {
-		parsed = flagsParsed
+	// Resolve frame metadata: flags take precedence, then filename
+	var meta upload.MoMorphFrameMeta
+	if flagsMeta != nil {
+		meta = *flagsMeta
 	} else {
-		var err error
-		parsed, err = upload.ParseFilePath(filePath)
+		id, name, err := upload.ParseFileNameForFrameID(filePath)
 		if err != nil {
 			return upload.UploadResult{
 				FilePath: filePath,
 				FileName: fileName,
 				Status:   upload.StatusSkipped,
 				Error:    err,
-				Message:  "Invalid file path format",
+				Message:  "Cannot determine frame ID: use --frame-id flag or name the file {frame_id}-{name}.csv",
 			}
 		}
+		meta = upload.MoMorphFrameMeta{FrameID: id, FrameName: name}
 	}
 
 	// Parse CSV file
@@ -270,39 +266,22 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath 
 
 	logger.Debug("Parsed %d specs from %s", len(specs), fileName)
 
-	// When no frame ID is provided, we cannot proceed (backend requires frame context)
-	if parsed.FrameID == "" {
-		return upload.UploadResult{
-			FilePath: filePath,
-			FileName: fileName,
-			Status:   upload.StatusFailed,
-			Message:  "frame-id is required for uploading specs (use --frame-id flag)",
-		}
-	}
-
-	// Get frame to validate and get IDs
-	frame, err := client.GetFrame(ctx, parsed.FileKey, parsed.FrameID)
+	// Fetch frame by MoMorph integer ID
+	frame, err := client.GetFrameByID(ctx, meta.FrameID)
 	if err != nil {
 		return upload.UploadResult{
 			FilePath: filePath,
 			FileName: fileName,
 			Status:   upload.StatusFailed,
 			Error:    err,
-			Message:  fmt.Sprintf("Frame not found: %v", err),
+			Message:  fmt.Sprintf("Frame not found (id=%d): %v", meta.FrameID, err),
 		}
 	}
 
-	// Check frame status (matches SDK's inDesignFrame check)
-	if frame.Status == "design" {
-		return upload.UploadResult{
-			FilePath: filePath,
-			FileName: fileName,
-			Status:   upload.StatusFailed,
-			Message:  "Cannot upload specs to frame in 'design' status",
-		}
-	}
+	// Allow uploading specs for frames in any status, including 'design'.
+	// This supports drafting specs before design assets are linked.
 
-	// Get node link IDs from specs
+	// Collect node link IDs present in the CSV (may be empty for no-Figma specs)
 	var nodeLinkIds []string
 	for _, spec := range specs {
 		if spec.NodeLinkID != "" {
@@ -310,20 +289,13 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath 
 		}
 	}
 
-	if len(nodeLinkIds) == 0 {
-		return upload.UploadResult{
-			FilePath: filePath,
-			FileName: fileName,
-			Status:   upload.StatusFailed,
-			Message:  "No valid node link IDs provided",
-		}
-	}
-
-	// Get existing design items for comparison
+	// Get existing design items for change-detection (only when node link IDs are available)
 	var existingItems []graphql.DesignItem
-	existingItems, err = client.ListDesignItemsByNodeLinkIds(ctx, parsed.FileKey, parsed.FrameID, nodeLinkIds)
-	if err != nil {
-		logger.Debug("Failed to get existing design items: %v", err)
+	if len(nodeLinkIds) > 0 {
+		existingItems, err = client.ListDesignItemsByFrameID(ctx, frame.ID, nodeLinkIds)
+		if err != nil {
+			logger.Debug("Failed to get existing design items: %v", err)
+		}
 	}
 
 	// Build map of existing items by node_link_id
@@ -406,7 +378,7 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath 
 		}
 	}
 
-	if len(linkedFrameNodeLinkIds) > 0 {
+	if len(linkedFrameNodeLinkIds) > 0 && frame.FrameLinkID != "" {
 		// Collect unique linked frame IDs
 		uniqueFrameIDs := make(map[string]bool)
 		for _, lf := range linkedFrameNodeLinkIds {
@@ -417,8 +389,8 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath 
 			frameLinkIds = append(frameLinkIds, id)
 		}
 
-		// Query to validate linked frames exist
-		linkedFrames, err := client.ListFramesByFrameLinkIds(ctx, parsed.FileKey, frameLinkIds)
+		// Query to validate linked frames exist (best-effort; skip on error)
+		linkedFrames, err := client.ListFramesByFrameLinkIds(ctx, "", frameLinkIds)
 		if err != nil {
 			logger.Debug("Failed to validate linked frames: %v", err)
 		} else {

@@ -144,6 +144,55 @@ query ListFramesByFrameLinkIds($fileKey: String!, $frameLinkIds: [String!]!) {
   }
 }
 `
+
+	// queryListFramesByFrameLinkIdsOnly - validate linked frames without requiring a Figma file key
+	queryListFramesByFrameLinkIdsOnly = `
+query ListFramesByFrameLinkIdsOnly($frameLinkIds: [String!]!) {
+  frames(where: {frame_link_id: {_in: $frameLinkIds}}) {
+    id
+    frame_link_id
+    name
+  }
+}
+`
+
+	// GetFrameByID query - fetch a MoMorph frame by its integer primary key
+	queryGetFrameByID = `
+query GetFrameByID($id: bigint!) {
+  frames(where: {id: {_eq: $id}}, limit: 1) {
+    id
+    frame_link_id
+    file_id
+    name
+    status
+  }
+}
+`
+
+	// ListDesignItemsByFrameIDAndNodeLinkIds query - fetch design items by frame ID and node link IDs
+	queryListDesignItemsByFrameIDAndNodeLinkIds = `
+query ListDesignItemsByFrameIDAndNodeLinkIds($frameId: bigint!, $nodeLinkIds: [String!]!) {
+  design_items(
+    where: {
+      _and: [
+        {frame_id: {_eq: $frameId}},
+        {node_link_id: {_in: $nodeLinkIds}}
+      ]
+    }
+  ) {
+    id
+    no
+    name
+    type
+    node_link_id
+    section_link_id
+    frame_id
+    status
+    specs
+    is_reviewed
+  }
+}
+`
 )
 
 // GraphQL mutations
@@ -183,14 +232,14 @@ mutation UpdateFrameTestcase($id: bigint!, $content: jsonb!, $baseStructure: jso
 `
 
 	// UpsertMultipleDesignItemSpecs mutation
-	// Uses constraint: design_items_section_link_id_node_link_id_file_id_key
-	// which requires section_link_id, node_link_id, and file_id to be unique
+	// Uses constraint: design_items_pkey (primary key)
+	// Performs upsert on primary key; if conflict, updates specs, type, status, name, no, is_reviewed
 	mutationUpsertDesignItemSpecs = `
 mutation UpsertMultipleDesignItemSpecs($items: [design_items_insert_input!]!) {
   insert_design_items(
     objects: $items,
     on_conflict: {
-      constraint: design_items_section_link_id_node_link_id_file_id_key,
+      constraint: design_items_pkey,
       update_columns: [specs, type, status, name, no, is_reviewed]
     }
   ) {
@@ -403,20 +452,75 @@ type FrameBasic struct {
 	Name        string `json:"name"`
 }
 
-// ListFramesByFrameLinkIds fetches frames by their frame link IDs
+// ListFramesByFrameLinkIds fetches frames by their frame link IDs.
+// When fileKey is empty the search is not scoped to a specific Figma file.
 func (c *Client) ListFramesByFrameLinkIds(ctx context.Context, fileKey string, frameLinkIds []string) ([]FrameBasic, error) {
-	variables := map[string]interface{}{
-		"fileKey":      fileKey,
-		"frameLinkIds": frameLinkIds,
-	}
-
 	var result struct {
 		Frames []FrameBasic `json:"frames"`
 	}
 
-	if err := c.ExecuteWithResult(ctx, queryListFramesByFrameLinkIds, variables, &result); err != nil {
-		return nil, err
+	if fileKey != "" {
+		variables := map[string]interface{}{
+			"fileKey":      fileKey,
+			"frameLinkIds": frameLinkIds,
+		}
+		if err := c.ExecuteWithResult(ctx, queryListFramesByFrameLinkIds, variables, &result); err != nil {
+			return nil, err
+		}
+	} else {
+		variables := map[string]interface{}{
+			"frameLinkIds": frameLinkIds,
+		}
+		if err := c.ExecuteWithResult(ctx, queryListFramesByFrameLinkIdsOnly, variables, &result); err != nil {
+			return nil, err
+		}
 	}
 
 	return result.Frames, nil
+}
+
+// GetFrameByID fetches a MoMorph frame by its integer primary key
+func (c *Client) GetFrameByID(ctx context.Context, id int) (*Frame, error) {
+	variables := map[string]interface{}{
+		"id": id,
+	}
+
+	var result struct {
+		Frames []Frame `json:"frames"`
+	}
+
+	if err := c.ExecuteWithResult(ctx, queryGetFrameByID, variables, &result); err != nil {
+		return nil, err
+	}
+
+	if len(result.Frames) == 0 {
+		return nil, fmt.Errorf("frame not found: id=%d", id)
+	}
+
+	return &result.Frames[0], nil
+}
+
+// ListDesignItemsByFrameID fetches design items by MoMorph frame ID.
+// When nodeLinkIds is non-empty only items matching those IDs are returned;
+// otherwise all design items for the frame are returned.
+func (c *Client) ListDesignItemsByFrameID(ctx context.Context, frameID int, nodeLinkIds []string) ([]DesignItem, error) {
+	if len(nodeLinkIds) > 0 {
+		variables := map[string]interface{}{
+			"frameId":     frameID,
+			"nodeLinkIds": nodeLinkIds,
+		}
+
+		var result struct {
+			DesignItems []DesignItem `json:"design_items"`
+		}
+
+		if err := c.ExecuteWithResult(ctx, queryListDesignItemsByFrameIDAndNodeLinkIds, variables, &result); err != nil {
+			return nil, err
+		}
+
+		return result.DesignItems, nil
+	}
+
+	// Return empty slice when there are no node link IDs to filter on
+	return nil, nil
 }

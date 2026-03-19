@@ -10,6 +10,32 @@ import (
 	"strings"
 )
 
+// ParseFileNameForFrameID extracts a MoMorph integer frame ID from a filename.
+// Expected formats:
+//
+//	{frame_id}-{frame_name}.csv  →  e.g. 123-MyScreen.csv
+//	{frame_id}.csv               →  e.g. 123.csv
+func ParseFileNameForFrameID(filePath string) (int, string, error) {
+	base := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+
+	dashIdx := strings.Index(base, "-")
+	var idStr, name string
+	if dashIdx > 0 {
+		idStr = base[:dashIdx]
+		name = base[dashIdx+1:]
+	} else {
+		idStr = base
+		name = ""
+	}
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
+		return 0, "", fmt.Errorf("filename does not start with a MoMorph frame ID (positive integer): %s", filepath.Base(filePath))
+	}
+
+	return id, name, nil
+}
+
 // ParseFilePath extracts metadata from file path
 // Expected format: .momorph/{testcases|specs}/{file_key}/{frame_id}-{frame_name}.csv
 // Example: .momorph/testcases/i09vM3jClQiu8cwXsMo6uy/9276:19907-TOP_Channel.csv
