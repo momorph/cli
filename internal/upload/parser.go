@@ -36,6 +36,40 @@ func ParseFileNameForFrameID(filePath string) (int, string, error) {
 	return id, name, nil
 }
 
+// ParseFileNameForFrameMeta extracts frame metadata from a filename.
+// Supports two formats:
+//   - MoMorph integer ID: {momorph_id}-{name}.csv  (e.g. 7323-iOS-Home.csv)
+//   - Figma frame ID:     {figma_id}-{name}.csv     (e.g. 70:1214-iOS-Home.csv)
+//
+// When a Figma frame ID is detected, FileKey in the returned meta will be empty;
+// callers should populate it from the file path or a --file-key flag.
+func ParseFileNameForFrameMeta(filePath string) (*MoMorphFrameMeta, error) {
+	base := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+
+	dashIdx := strings.Index(base, "-")
+	var idStr, name string
+	if dashIdx > 0 {
+		idStr = base[:dashIdx]
+		name = base[dashIdx+1:]
+	} else {
+		idStr = base
+		name = ""
+	}
+
+	// Try as MoMorph integer ID first
+	id, err := strconv.Atoi(idStr)
+	if err == nil && id > 0 {
+		return &MoMorphFrameMeta{FrameID: id, FrameName: name}, nil
+	}
+
+	// Try as Figma frame ID (format: "nodeId:figmaId", e.g. "70:1214")
+	if strings.Contains(idStr, ":") {
+		return &MoMorphFrameMeta{FigmaFrameID: idStr, FrameName: name}, nil
+	}
+
+	return nil, fmt.Errorf("cannot determine frame ID: use --frame-id flag or name the file {momorph_id}-{name}.csv or {figma_id}-{name}.csv (e.g. 70:1214-iOS-Home.csv)")
+}
+
 // ParseFilePath extracts metadata from file path
 // Expected format: .momorph/{testcases|specs}/{file_key}/{frame_id}-{frame_name}.csv
 // Example: .momorph/testcases/i09vM3jClQiu8cwXsMo6uy/9276:19907-TOP_Channel.csv
