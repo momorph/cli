@@ -65,12 +65,13 @@ type Spec struct {
 // ValidatedSpec represents a spec with validation results
 type ValidatedSpec struct {
 	Spec
-	Status   string   // determined status: none, draft, completed
-	IsValid  bool     // whether spec passed validation
-	Errors   []string // validation error messages
-	Changed  bool     // whether spec differs from existing
-	IsNew    bool     // whether this is a new item (not in DB)
-	Existing *Spec    // reference to existing spec if any
+	Status     string   // determined status: none, draft, completed
+	IsValid    bool     // whether spec passed validation
+	Errors     []string // validation error messages
+	Changed    bool     // whether spec differs from existing
+	IsNew      bool     // whether this is a new item (not in DB)
+	ExistingID int      // DB primary key of the existing row (0 for new items)
+	Existing   *Spec    // reference to existing spec if any
 }
 
 // SpecPayload represents the transformed payload for GraphQL mutation
@@ -141,11 +142,13 @@ type ParsedFilePath struct {
 	FrameName string // Frame name
 }
 
-// MoMorphFrameMeta contains frame metadata resolved from a MoMorph integer frame ID.
-// Used when uploading specs without Figma design information.
+// MoMorphFrameMeta contains frame metadata used when uploading specs.
+// Either FrameID (MoMorph integer) or FigmaFrameID (Figma node ID like "70:1214") must be set.
 type MoMorphFrameMeta struct {
-	FrameID   int    // MoMorph integer frame ID
-	FrameName string // Frame name (for display only, optional)
+	FrameID      int    // MoMorph integer frame ID (0 if using FigmaFrameID)
+	FigmaFrameID string // Figma frame link ID e.g. "70:1214" (empty if using FrameID)
+	FileKey      string // Figma file key, required when FigmaFrameID is set
+	FrameName    string // Frame name (for display only, optional)
 }
 
 // UploadStatus represents the status of a file upload
