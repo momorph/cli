@@ -143,12 +143,14 @@ type ParsedFilePath struct {
 }
 
 // MoMorphFrameMeta contains frame metadata used when uploading specs.
-// Either FrameID (MoMorph integer) or FigmaFrameID (Figma node ID like "70:1214") must be set.
+// Either FrameID (MoMorph integer), FigmaFrameID (Figma node ID like "70:1214"),
+// or ScreenID must be set.
 type MoMorphFrameMeta struct {
-	FrameID      int    // MoMorph integer frame ID (0 if using FigmaFrameID)
-	FigmaFrameID string // Figma frame link ID e.g. "70:1214" (empty if using FrameID)
+	FrameID      int    // MoMorph integer frame ID (0 if using FigmaFrameID or ScreenID)
+	FigmaFrameID string // Figma frame link ID e.g. "70:1214" (empty if using FrameID or ScreenID)
 	FileKey      string // Figma file key, required when FigmaFrameID is set
 	FrameName    string // Frame name (for display only, optional)
+	ScreenID     string // MoMorph screen ID (empty if using FrameID or FigmaFrameID)
 }
 
 // UploadStatus represents the status of a file upload

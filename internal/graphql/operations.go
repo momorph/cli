@@ -13,6 +13,7 @@ type Frame struct {
 	FileID      int    `json:"file_id"`
 	Name        string `json:"name"`
 	Status      string `json:"status"`
+	ScreenID    string `json:"screen_id"`
 }
 
 // FrameTestCase represents a test case for a frame
@@ -165,6 +166,39 @@ query GetFrameByID($id: bigint!) {
     file_id
     name
     status
+  }
+}
+`
+
+	// GetFrameByScreenID query - fetch a MoMorph frame by its screen_id
+	queryGetFrameByScreenID = `
+query GetFrameByScreenID($screenId: String!) {
+  frames(where: {screen_id: {_eq: $screenId}}, limit: 1) {
+    id
+    frame_link_id
+    file_id
+    name
+    status
+    screen_id
+  }
+}
+`
+
+	// GetFrameTestCasesByScreenID query - fetch test cases by screen_id
+	queryGetFrameTestCasesByScreenID = `
+query GetFrameTestCasesByScreenID($screenId: String!) {
+  frame_testcases(
+    where: {
+      frame: {screen_id: {_eq: $screenId}}
+    }
+  ) {
+    id
+    testcasable_id
+    content
+    base_structure
+    status
+    created_at
+    updated_at
   }
 }
 `
@@ -498,6 +532,44 @@ func (c *Client) GetFrameByID(ctx context.Context, id int) (*Frame, error) {
 	}
 
 	return &result.Frames[0], nil
+}
+
+// GetFrameByScreenID fetches a MoMorph frame by its screen_id
+func (c *Client) GetFrameByScreenID(ctx context.Context, screenID string) (*Frame, error) {
+	variables := map[string]interface{}{
+		"screenId": screenID,
+	}
+
+	var result struct {
+		Frames []Frame `json:"frames"`
+	}
+
+	if err := c.ExecuteWithResult(ctx, queryGetFrameByScreenID, variables, &result); err != nil {
+		return nil, err
+	}
+
+	if len(result.Frames) == 0 {
+		return nil, fmt.Errorf("frame not found: screen_id=%s", screenID)
+	}
+
+	return &result.Frames[0], nil
+}
+
+// GetFrameTestCasesByScreenID fetches test cases for a frame by screen_id
+func (c *Client) GetFrameTestCasesByScreenID(ctx context.Context, screenID string) ([]FrameTestCase, error) {
+	variables := map[string]interface{}{
+		"screenId": screenID,
+	}
+
+	var result struct {
+		FrameTestcases []FrameTestCase `json:"frame_testcases"`
+	}
+
+	if err := c.ExecuteWithResult(ctx, queryGetFrameTestCasesByScreenID, variables, &result); err != nil {
+		return nil, err
+	}
+
+	return result.FrameTestcases, nil
 }
 
 // ListDesignItemsByFrameID fetches design items by MoMorph frame ID.

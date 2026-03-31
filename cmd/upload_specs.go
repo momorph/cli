@@ -26,6 +26,7 @@ var (
 	specFrameID         string
 	specFileKey         string
 	specFrameName       string
+	specScreenID        string
 )
 
 // CSV columns are mapped to spec fields:
@@ -51,6 +52,8 @@ Two frame ID formats are supported:
 
 When using a Figma frame ID, the Figma file key is inferred from the path
 convention .momorph/specs/{file_key}/... or supplied via --file-key.
+
+Alternatively, use --screen-id to upload by screen ID instead of frame ID.
 `,
 	Example: `  # Upload using MoMorph integer frame ID in filename
   momorph upload specs 7323-iOS-Home.csv
@@ -63,6 +66,9 @@ convention .momorph/specs/{file_key}/... or supplied via --file-key.
 
   # Upload with explicit Figma frame ID and file key
   momorph upload specs ~/data/my-specs.csv --frame-id=70:1214 --file-key=Dhz3zTL0vjaOTDGUIHugQe
+
+  # Upload using screen ID
+  momorph upload specs ~/data/my-specs.csv --screen-id=42
 
   # Upload all CSV files in a directory recursively
   momorph upload specs --dir ./specs/ -r
@@ -80,6 +86,7 @@ func init() {
 	uploadSpecsCmd.Flags().StringVar(&specFrameID, "frame-id", "", "Frame ID: MoMorph integer (e.g. 7323) or Figma frame ID (e.g. 70:1214). Required when not encoded in the filename.")
 	uploadSpecsCmd.Flags().StringVar(&specFileKey, "file-key", "", "Figma file key (required with --frame-id when using a Figma frame ID outside .momorph/ path)")
 	uploadSpecsCmd.Flags().StringVar(&specFrameName, "frame-name", "", "Frame name for display (optional, used with --frame-id)")
+	uploadSpecsCmd.Flags().StringVar(&specScreenID, "screen-id", "", "Screen ID (MoMorph integer, alternative to --frame-id)")
 	uploadCmd.AddCommand(uploadSpecsCmd)
 }
 
@@ -112,9 +119,20 @@ func runUploadSpecs(cmd *cobra.Command, args []string) error {
 		fmt.Println("⚠ Could not get user email for revision tracking")
 	}
 
+	// Validate conflicting flags
+	if specScreenID != "" && (specFrameID != "" || specFileKey != "") {
+		return fmt.Errorf("--screen-id cannot be used together with --frame-id or --file-key")
+	}
+
 	// Parse --frame-id flag when provided
 	var flagsMeta *upload.MoMorphFrameMeta
-	if specFrameID != "" {
+	if specScreenID != "" {
+		// Screen ID mode takes precedence
+		flagsMeta = &upload.MoMorphFrameMeta{
+			ScreenID:  specScreenID,
+			FrameName: specFrameName,
+		}
+	} else if specFrameID != "" {
 		parsedID, err := strconv.Atoi(specFrameID)
 		if err == nil && parsedID > 0 {
 			// MoMorph integer frame ID
@@ -143,7 +161,7 @@ func runUploadSpecs(cmd *cobra.Command, args []string) error {
 	if len(files) == 0 {
 		fmt.Println("No CSV files found to upload")
 		fmt.Println("\nProvide CSV file paths directly or use --dir to scan a directory.")
-		fmt.Println("The frame ID must be in the filename (e.g. 42-MyScreen.csv) or supplied via --frame-id.")
+		fmt.Println("The frame ID must be in the filename (e.g. 42-MyScreen.csv) or supplied via --frame-id or --screen-id.")
 		return nil
 	}
 
@@ -181,7 +199,9 @@ func runUploadSpecs(cmd *cobra.Command, args []string) error {
 			}
 			specs, _ := upload.ParseSpecsCSV(f)
 			fmt.Printf("  - %s\n", filepath.Base(f))
-			if meta.FigmaFrameID != "" {
+			if meta.ScreenID != "" {
+				fmt.Printf("    Screen ID:  %s\n", meta.ScreenID)
+			} else if meta.FigmaFrameID != "" {
 				fmt.Printf("    Figma Frame ID: %s\n", meta.FigmaFrameID)
 				fmt.Printf("    File Key:       %s\n", meta.FileKey)
 			} else {
@@ -306,9 +326,20 @@ func uploadSingleSpecFile(ctx context.Context, client *graphql.Client, filePath 
 
 	logger.Debug("Parsed %d specs from %s", len(specs), fileName)
 
-	// Fetch frame — by MoMorph integer ID or by Figma frame ID
+	// Fetch frame — by screen ID, MoMorph integer ID, or Figma frame ID
 	var frame *graphql.Frame
-	if meta.FigmaFrameID != "" {
+	if meta.ScreenID != "" {
+		frame, err = client.GetFrameByScreenID(ctx, meta.ScreenID)
+		if err != nil {
+			return upload.UploadResult{
+				FilePath: filePath,
+				FileName: fileName,
+				Status:   upload.StatusFailed,
+				Error:    err,
+				Message:  fmt.Sprintf("Frame not found (screen_id=%s): %v", meta.ScreenID, err),
+			}
+		}
+	} else if meta.FigmaFrameID != "" {
 		if meta.FileKey == "" {
 			return upload.UploadResult{
 				FilePath: filePath,
