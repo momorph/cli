@@ -23,6 +23,7 @@ var (
 	tcFileKey         string
 	tcFrameID         string
 	tcFrameName       string
+	tcScreenID        string
 )
 
 // CSV columns are mapped to test case fields:
@@ -43,12 +44,17 @@ By default, files must follow the path pattern:
 
 Alternatively, use --file-key (and optionally --frame-id, --frame-name) to
 upload CSV files from any location without following the path convention.
+
+You can also use --screen-id to upload by screen ID instead of frame ID.
 `,
 	Example: `  # Upload using path convention
   momorph upload testcases .momorph/testcases/xxx/9276:19907-TOP_Channel.csv
 
   # Upload from any location with explicit metadata
   momorph upload testcases ~/data/tc.csv --file-key=xxx --frame-id=9276:19907
+
+  # Upload using screen ID
+  momorph upload testcases ~/data/tc.csv --screen-id=42
 
   # Upload all testcases in a directory recursively
   momorph upload testcases --dir .momorph/testcases/ -r
@@ -66,6 +72,7 @@ func init() {
 	uploadTestcasesCmd.Flags().StringVar(&tcFileKey, "file-key", "", "Figma file key (required when CSV is not in .momorph/ path)")
 	uploadTestcasesCmd.Flags().StringVar(&tcFrameID, "frame-id", "", "Figma frame ID (optional, used with --file-key)")
 	uploadTestcasesCmd.Flags().StringVar(&tcFrameName, "frame-name", "", "Frame name (optional, used with --file-key)")
+	uploadTestcasesCmd.Flags().StringVar(&tcScreenID, "screen-id", "", "Screen ID (MoMorph integer, alternative to --frame-id)")
 	uploadCmd.AddCommand(uploadTestcasesCmd)
 }
 
@@ -91,8 +98,13 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Determine if using flags mode (--file-key provided)
-	useFlags := tcFileKey != ""
+	// Validate conflicting flags
+	if tcScreenID != "" && (tcFileKey != "" || tcFrameID != "") {
+		return fmt.Errorf("--screen-id cannot be used together with --file-key or --frame-id")
+	}
+
+	// Determine if using flags mode (--file-key or --screen-id provided)
+	useFlags := tcFileKey != "" || tcScreenID != ""
 
 	// Build parsed metadata from flags when in flags mode
 	var flagsParsed *upload.ParsedFilePath
@@ -116,8 +128,9 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 		if !useFlags {
 			fmt.Println("\nMake sure files are in the correct path format:")
 			fmt.Println("  .momorph/testcases/{file_key}/{frame_id}-{frame_name}.csv")
-			fmt.Println("\nOr use --file-key to upload from any location:")
+			fmt.Println("\nOr use --file-key or --screen-id to upload from any location:")
 			fmt.Println("  momorph upload testcases myfile.csv --file-key=<figma_file_key>")
+			fmt.Println("  momorph upload testcases myfile.csv --screen-id=<screen_id>")
 		}
 		return nil
 	}
@@ -147,8 +160,12 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 				parsed, _ = upload.ParseFilePath(f)
 			}
 			fmt.Printf("  - %s\n", filepath.Base(f))
-			fmt.Printf("    File Key: %s\n", parsed.FileKey)
-			fmt.Printf("    Frame ID: %s\n", parsed.FrameID)
+			if tcScreenID != "" {
+				fmt.Printf("    Screen ID: %s\n", tcScreenID)
+			} else {
+				fmt.Printf("    File Key: %s\n", parsed.FileKey)
+				fmt.Printf("    Frame ID: %s\n", parsed.FrameID)
+			}
 			fmt.Printf("    Frame Name: %s\n", parsed.FrameName)
 		}
 		return nil
@@ -163,7 +180,7 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 
 	// Upload files
 	fmt.Printf("\nUploading %d test case file(s)...\n", len(validFiles))
-	results := uploadTestcaseFiles(ctx, client, validFiles, flagsParsed, tcUploadContinue)
+	results := uploadTestcaseFiles(ctx, client, validFiles, flagsParsed, tcScreenID, tcUploadContinue)
 
 	// Combine with skipped files
 	allResults := append(skipped, results...)
@@ -174,7 +191,7 @@ func runUploadTestcases(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []string, flagsParsed *upload.ParsedFilePath, continueOnError bool) []upload.UploadResult {
+func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []string, flagsParsed *upload.ParsedFilePath, screenID string, continueOnError bool) []upload.UploadResult {
 	var results []upload.UploadResult
 
 	for i, file := range files {
@@ -188,7 +205,7 @@ func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []st
 		fileName := filepath.Base(file)
 		fmt.Printf("  [%d/%d] %s ", i+1, len(files), fileName)
 
-		result := uploadSingleTestcaseFile(ctx, client, file, flagsParsed)
+		result := uploadSingleTestcaseFile(ctx, client, file, flagsParsed, screenID)
 		results = append(results, result)
 
 		switch result.Status {
@@ -211,8 +228,91 @@ func uploadTestcaseFiles(ctx context.Context, client *graphql.Client, files []st
 
 // uploadSingleTestcaseFile uploads a single testcase CSV file. When flagsParsed
 // is non-nil it is used as metadata instead of parsing from the file path.
-func uploadSingleTestcaseFile(ctx context.Context, client *graphql.Client, filePath string, flagsParsed *upload.ParsedFilePath) upload.UploadResult {
+// When screenID != "", the frame is resolved by screen_id instead of file-key + frame-id.
+func uploadSingleTestcaseFile(ctx context.Context, client *graphql.Client, filePath string, flagsParsed *upload.ParsedFilePath, screenID string) upload.UploadResult {
 	fileName := filepath.Base(filePath)
+
+	// Screen ID mode: resolve frame by screen_id directly
+	if screenID != "" {
+		// Parse CSV file
+		frameName := ""
+		if flagsParsed != nil {
+			frameName = flagsParsed.FrameName
+		}
+		content, err := upload.ParseTestcasesCSV(filePath, frameName)
+		if err != nil {
+			return upload.UploadResult{
+				FilePath: filePath,
+				FileName: fileName,
+				Status:   upload.StatusFailed,
+				Error:    err,
+				Message:  fmt.Sprintf("Failed to parse CSV: %v", err),
+			}
+		}
+
+		if len(content.TestCases) == 0 {
+			return upload.UploadResult{
+				FilePath: filePath,
+				FileName: fileName,
+				Status:   upload.StatusSkipped,
+				Message:  "CSV file contains no test cases",
+			}
+		}
+
+		logger.Debug("Parsed %d test cases from %s", len(content.TestCases), fileName)
+
+		// Check if test cases already exist for this screen
+		existingTestCases, err := client.GetFrameTestCasesByScreenID(ctx, screenID)
+		if err != nil {
+			logger.Debug("No existing test cases found: %v", err)
+		}
+
+		if len(existingTestCases) > 0 {
+			logger.Debug("Updating existing test case ID: %d", existingTestCases[0].ID)
+			_, err = client.UpdateFrameTestcase(ctx, existingTestCases[0].ID, content)
+			if err != nil {
+				return upload.UploadResult{
+					FilePath: filePath,
+					FileName: fileName,
+					Status:   upload.StatusFailed,
+					Error:    err,
+					Message:  fmt.Sprintf("Failed to update test case: %v", err),
+				}
+			}
+		} else {
+			// Get frame by screen_id to get internal ID
+			frame, err := client.GetFrameByScreenID(ctx, screenID)
+			if err != nil {
+				return upload.UploadResult{
+					FilePath: filePath,
+					FileName: fileName,
+					Status:   upload.StatusFailed,
+					Error:    err,
+					Message:  fmt.Sprintf("Frame not found for screen_id=%s: %v", screenID, err),
+				}
+			}
+
+			logger.Debug("Creating new test case for frame ID: %d (screen_id=%s)", frame.ID, screenID)
+
+			_, err = client.InsertFrameTestcase(ctx, frame.ID, content)
+			if err != nil {
+				return upload.UploadResult{
+					FilePath: filePath,
+					FileName: fileName,
+					Status:   upload.StatusFailed,
+					Error:    err,
+					Message:  fmt.Sprintf("Failed to insert test case: %v", err),
+				}
+			}
+		}
+
+		return upload.UploadResult{
+			FilePath: filePath,
+			FileName: fileName,
+			Status:   upload.StatusSuccess,
+			Message:  fmt.Sprintf("Uploaded %d test cases", len(content.TestCases)),
+		}
+	}
 
 	// Resolve metadata: use flags or parse from path
 	var parsed *upload.ParsedFilePath
@@ -261,7 +361,7 @@ func uploadSingleTestcaseFile(ctx context.Context, client *graphql.Client, fileP
 			FilePath: filePath,
 			FileName: fileName,
 			Status:   upload.StatusFailed,
-			Message:  "frame-id is required for uploading test cases (use --frame-id flag)",
+			Message:  "frame-id is required for uploading test cases (use --frame-id or --screen-id flag)",
 		}
 	}
 
